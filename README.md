@@ -11,8 +11,8 @@ names, map symbols, material paths, command-line names, wording, colours) comes 
 | Module | What |
 |---|---|
 | `TesseraCore` | `UTSData` (JSON game data, units, tile map, spawns, regions), `TSLook` (3D / HD-2D / flat 2D looks, sprite and pixel materials), `TSAssets`, `TSJson`, `TSCmd` / `TSConfig` |
-| `TesseraWorld` | `ATSWorldBuilder` (base for a game's world builder: mesh helpers, height field, cutaways, flickering lights, runtime navmesh), `ATSSky` (sun, moon, fog, grade, day/night clock, night visibility) |
-| `TesseraGameplay` | `ATSCharacter` (base for every character: stats, tags, poise, knockback, death, weapon kits, sprite, hooks for the game's rules), `UTSStatsComponent` (data-defined pools and formulas), `TSCombat` (damage pipeline), `UTSAbilityComponent` (12 built-in ability types + `RegisterType`), `ATSProjectile`, `ATSFX`, `UTSInventoryComponent` / `TSLoot` / `ATSPickup`, `UTSFeedback` (floating text, toasts, shake), `UTSAreaEvents` (area effects for non-characters: status, push), `TSPerception` (sight cone, hearing, line of sight, "Hidden" stealth, threat sense), `UTSSpriteComponent`, `UTSPoseMesh`, anim-notify hooks |
+| `TesseraWorld` | `ATSWorldBuilder` (base for a game's world builder: mesh helpers, height field, cutaways, flickering lights, runtime navmesh), `ATSSky` (sun, moon, fog, grade, day/night clock, night visibility), `UTSDayNight` (the cycle as events: `OnPhase`, `OnHour`, `OnNightLevel`) |
+| `TesseraGameplay` | `ATSCharacter` (base for every character: stats, tags, poise, knockback, death, weapon kits, sprite, hooks for the game's rules), `UTSStatsComponent` (data-defined pools and formulas), `TSCombat` (damage pipeline), `UTSAbilityComponent` (12 built-in ability types + `RegisterType`), `ATSProjectile`, `ATSFX` (incl. ground scars: cracks / scorch / forks), `UTSInventoryComponent` / `TSLoot` / `ATSPickup`, `UTSFeedback` (floating text, toasts, shake), `UTSAreaEvents` (area effects for non-characters: status, push), `TSPerception` (sight cone, hearing, line of sight, "Hidden" stealth, threat sense), `UTSSpriteComponent`, `UTSPoseMesh`, anim-notify hooks |
 | `TesseraHero` | `UTSCameraRig` (top-down / HD-2D / flat-2D / over-the-shoulder camera from data: zoom, tilt-shift focus, shake), `UTSHeroControl` (Diablo-style mouse: cursor picking and aim assist, click-to-move on the navmesh, click-to-attack / talk with the game's rules as hooks, talk mode, slow-motion ability picker) |
 | `TesseraTest` | `ATSTestRunner` (base for a game's scripted self-tests: steps, reports, quit, screenshots, real clicks), `TSTestSwitches` (`-<P>Test=`, `-<P>Shot=`, `-<P>Cam=`, `-<P>QuitAfter=`) |
 | `TesseraUI` | Slate kit, no assets: `FTSUIStyle` / `TSUI` helpers, `FTSChoose` (menu choose-flash-fade), `STSDialogueBox` (fed by an `FTSDialogueView`: any story system), `STSTitle`, `STSPauseMenu`, `STSCursor`, `STSNightShade`, `STSToasts`, `STSAbilityPicker`, `TSHUDDraw` (canvas: text, bars, floaters, ground ring, threat arrows) |
@@ -99,6 +99,20 @@ V.Close = [Story]() { Story->CloseDialogue(); };
 SAssignNew(Box, STSDialogueBox).World(World).View(V);              // call Box->Refresh() on OnDialogueChanged
 ```
 
+## Events, not settings
+
+Tessera announces; the game decides. Subscribe to these and act in game code (Loom never depends on Tessera: the game
+passes on what the story needs, e.g. a "time of day" flag or condition):
+
+| Event | From |
+|---|---|
+| `OnPhase` (day / dusk / night / dawn), `OnHour`, `OnNightLevel` (0-1, smooth) | `UTSDayNight` |
+| `OnStatus` (an area got a tag, e.g. Frozen), `OnPush` (a barrier went up) | `UTSAreaEvents` |
+| `OnChanged` | `UTSInventoryComponent` |
+
+Going the other way, the game tells Tessera what it can't know: `ATSSky::SetCarriedLight` (the hero carries a light),
+`UTSHeroControl` hooks (attack reach, who will talk), `FTSDialogueView` (what the dialogue box shows).
+
 ## Data it reads
 
 ```jsonc
@@ -140,6 +154,8 @@ SAssignNew(Box, STSDialogueBox).World(World).View(V);              // call Box->
 "abilities": { "<id>": { "type": "projectile" | "aoe" | ... | <registered>, "<pool>": cost, "cooldown": 1, ... } },
   // aoe: "applyTag": { "tag": "Frozen", "duration": 3, "everyone": true }, "fx": { "shape": "sphere", "ground": 3, "groundColor": "#cfeaff" }
   // a guard (block) with "keepOut": 50 is a barrier: anyone inside when it goes up is thrown clear, nobody gets in while it's up
+  // "scar": { "style": "cracks" | "scorch" | "forks", "radius", "chance", "life": [min, max], "delay", "color", "opacity", "glow", "glowTime" }
+  //   aoe: on the area; projectile: where it bursts; chain: under each target
 "items": { ... }, "rarities": { ... }, "affixes": [ ... ], "lootTables": { ... },
 "map": {
   "rows": [ "########", "#..P..g#", ... ],        // one character per tile

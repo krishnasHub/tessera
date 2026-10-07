@@ -2,6 +2,7 @@
 #include "TSAssets.h"
 #include "TSCharacter.h"
 #include "TSData.h"
+#include "TSFX.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
@@ -141,6 +142,7 @@ ATSProjectile* ATSProjectile::FireArrow(ATSCharacter* Owner, const FVector& From
 
 void ATSProjectile::Burst()
 {
+	if (Scar) ATSFX::Scar(GetWorld(), ATSFX::GroundBelow(GetWorld(), GetActorLocation()), Scar, 50.f);
 	if (UNiagaraSystem* FX = TSAssets::Get<UNiagaraSystem>(this, TEXT("hitEffect")))
 	{
 		UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), FX, GetActorLocation(), FRotator::ZeroRotator, FVector(0.5f));

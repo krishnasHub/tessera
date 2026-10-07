@@ -45,8 +45,11 @@ public:
 	static float Night();
 	/** How strongly the dark swallows everything out of reach (0 by day, up to ~1 in deep night). */
 	static float Darkness();
-	/** How far the hero sees in the dark (uu). */
+	/** How far the hero sees in the dark (uu): nightVision.heroSight plus what the hero carries (SetCarriedLight). */
 	static float HeroSight();
+	/** A light the hero carries (a lamp, a glowing staff...) adds this much (uu) to their sight in the dark; the game
+	 *  sets it (e.g. from UTSDayNight::OnNightLevel). */
+	static void SetCarriedLight(float ExtraSight);
 	/** Fires, lamps...: (x, y, radius they light). */
 	static const TArray<FVector>& NightLights();
 	/** A light that keeps the dark back within Radius (scaled by nightVision.lightReach). */

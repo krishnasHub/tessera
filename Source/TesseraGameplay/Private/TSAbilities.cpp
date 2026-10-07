@@ -186,14 +186,15 @@ void UTSAbilityComponent::RegisterBuiltIns()
 				ATSProjectile::FireArrow(P, From + ShotDir * 15.f, To, X.Dist(TEXT("speed"), 400), X.Dist(TEXT("radius"), 6), X.Color, X.MakeHit(float(X.Num(TEXT("damage"), 10))));
 				continue;
 			}
-			ATSProjectile::Fire(P, From + ShotDir * 15.f, ShotDir, X.Dist(TEXT("speed"), 400), Range, X.Dist(TEXT("radius"), 6), X.Color, false, X.MakeHit(float(X.Num(TEXT("damage"), 10))));
+			if (ATSProjectile* Shot = ATSProjectile::Fire(P, From + ShotDir * 15.f, ShotDir, X.Dist(TEXT("speed"), 400), Range, X.Dist(TEXT("radius"), 6), X.Color, false, X.MakeHit(float(X.Num(TEXT("damage"), 10)))))
+				Shot->Scar = TSJson::Obj(X.Def, TEXT("scar"));   // marks the ground where it bursts
 		}
 		return true;
 	});
 
 	// A cleave, a frost nova. Data: radius, damage; applyTag { tag, duration, everyone } (everyone: every character in
 	// the area gets the tag, not just the opponents hit, and the area is announced through UTSAreaEvents);
-	// fx { shape: "ring" | "sphere", ground: seconds of a stain on the ground, groundColor }.
+	// fx { shape: "ring" | "sphere", ground: seconds of a stain on the ground, groundColor }; scar (ATSFX::Scar).
 	T.Add(TEXT("aoe"), [](const FTSAbilityContext& X)
 	{
 		ATSCharacter* P = X.Caster;
@@ -201,8 +202,10 @@ void UTSAbilityComponent::RegisterBuiltIns()
 		const TSJson::FObj Fx = TSJson::Obj(X.Def, TEXT("fx"));
 		if (TSJson::Str(Fx, TEXT("shape"), TEXT("ring")) == TEXT("sphere")) ATSFX::Sphere(X.World, X.Ground, R, X.Color, float(TSJson::Num(Fx, TEXT("time"), 0.7)));
 		else ATSFX::Ring(X.World, X.Ground, R, X.Color, 0.4f);
-		if (const double Ground = TSJson::Num(Fx, TEXT("ground"), 0))
+		const double Ground = TSJson::Num(Fx, TEXT("ground"), 0);
+		if (Ground > 0)
 			ATSFX::Stain(X.World, X.Ground, R, TSJson::Has(Fx, TEXT("groundColor")) ? TSJson::Color(TSJson::Str(Fx, TEXT("groundColor"))) : X.Color, float(Ground));
+		ATSFX::Scar(X.World, X.Ground, TSJson::Obj(X.Def, TEXT("scar")), R * 0.9f);   // a mark left on the ground (data: scar)
 
 		const TSJson::FObj Tag = TSJson::Obj(X.Def, TEXT("applyTag"));
 		const FName TagName = Tag ? FName(TSJson::Str(Tag, TEXT("tag"))) : NAME_None;
@@ -300,6 +303,7 @@ void UTSAbilityComponent::RegisterBuiltIns()
 		{
 			Hit.Add(Target);
 			Points.Add(Target->Chest());
+			ATSFX::Scar(X.World, ATSFX::GroundBelow(X.World, Target->GetActorLocation()), TSJson::Obj(X.Def, TEXT("scar")), 60.f);   // burns where it strikes
 			FTSHit H = X.MakeHit(Base);
 			H.Knockback = 60.f;
 			TSCombat::Deal(P, Target, H);

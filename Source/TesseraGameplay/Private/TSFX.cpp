@@ -1,5 +1,6 @@
 #include "TSFX.h"
 #include "TSAssets.h"
+#include "TSData.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
@@ -9,6 +10,7 @@
 #include "Particles/ParticleSystemComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
+#include "ProceduralMeshComponent.h"
 
 namespace
 {
@@ -128,6 +130,144 @@ void ATSFX::Stain(UWorld* W, const FVector& At, float InRadius, const FLinearCol
 	Disc->SetRelativeScale3D(FVector(InRadius / 50.f, InRadius / 50.f, 0.01f));
 }
 
+namespace
+{
+	/** Builds a scar's triangles on the ground around a point (each vertex dropped onto the ground under it). */
+	struct FTSScarBuilder
+	{
+		UWorld* W = nullptr;
+		FVector At;
+		float Radius = 100.f;
+		TArray<FVector> V;
+		TArray<int32> Tri;
+
+		FVector Ground(const FVector2D& P) const
+		{
+			FHitResult H;
+			FCollisionQueryParams Q(SCENE_QUERY_STAT(TSScar), false);
+			const FVector Top(At.X + P.X, At.Y + P.Y, At.Z + 300.f);
+			const float Z = W->LineTraceSingleByChannel(H, Top, Top - FVector(0, 0, 900.f), ECC_Visibility, Q) && H.ImpactNormal.Z > 0.6f ? H.ImpactPoint.Z : At.Z;
+			return FVector(P.X, P.Y, Z - At.Z + 2.f);   // relative to the actor, a hair above the ground
+		}
+		static FVector2D Dir(float Deg) { return FVector2D(FMath::Cos(FMath::DegreesToRadians(Deg)), FMath::Sin(FMath::DegreesToRadians(Deg))); }
+
+		void Quad(const FVector2D& A, const FVector2D& B, float WA, float WB)
+		{
+			const FVector2D D = (B - A).GetSafeNormal(), N(-D.Y, D.X);
+			const int32 I = V.Num();
+			V.Add(Ground(A + N * WA)); V.Add(Ground(A - N * WA)); V.Add(Ground(B + N * WB)); V.Add(Ground(B - N * WB));
+			Tri.Append({ I, I + 2, I + 1, I + 1, I + 2, I + 3 });
+		}
+		/** A ragged disc: radius R, each rim point R x (1 - Rough .. 1). */
+		void Blotch(const FVector2D& C, float R, float Rough)
+		{
+			const int32 N = FMath::RandRange(12, 18);
+			const int32 I = V.Num();
+			V.Add(Ground(C));
+			for (int32 K = 0; K < N; ++K) V.Add(Ground(C + Dir(360.f * K / N + FMath::FRandRange(-8.f, 8.f)) * R * FMath::FRandRange(1.f - Rough, 1.f)));
+			for (int32 K = 0; K < N; ++K) Tri.Append({ I, I + 1 + (K + 1) % N, I + 1 + K });
+		}
+		/** A wandering line from P, thinning to a point, branching now and then. */
+		void Crack(FVector2D P, float Angle, float Length, float Width, int32 Depth, float Jag, float Branch)
+		{
+			const int32 Steps = FMath::RandRange(4, 7);
+			const float Step = Length / Steps;
+			for (int32 S = 0; S < Steps; ++S)
+			{
+				Angle += FMath::FRandRange(-Jag, Jag);
+				const FVector2D Q = P + Dir(Angle) * Step * FMath::FRandRange(0.7f, 1.3f);
+				if (Q.Size() > Radius) break;
+				const float W0 = Width * (1.f - float(S) / Steps), W1 = Width * (1.f - float(S + 1) / Steps) + 0.6f;
+				Quad(P, Q, W0, W1);
+				if (Depth < 2 && FMath::FRand() < Branch)
+					Crack(Q, Angle + (FMath::RandBool() ? 1.f : -1.f) * FMath::FRandRange(30.f, 65.f), Length * FMath::FRandRange(0.25f, 0.45f), W0 * 0.6f, Depth + 1, Jag, Branch);
+				P = Q;
+			}
+		}
+		/** Lines bursting out from around the centre: Count of them, Length x radius, Width at the root. */
+		void Burst(int32 Count, float MinLen, float MaxLen, float Width, float Jag, float Branch, float StartAt)
+		{
+			const float Start = FMath::FRandRange(0.f, 360.f);
+			for (int32 I = 0; I < Count; ++I)
+			{
+				const float A = Start + 360.f * I / Count + FMath::FRandRange(-18.f, 18.f);
+				Crack(Dir(A) * Radius * FMath::FRandRange(0.f, StartAt), A, Radius * FMath::FRandRange(MinLen, MaxLen), Width * FMath::FRandRange(0.7f, 1.2f), 0, Jag, Branch);
+			}
+		}
+		void Clear() { V.Reset(); Tri.Reset(); }
+	};
+}
+
+FVector ATSFX::GroundBelow(UWorld* W, const FVector& P)
+{
+	FHitResult H;
+	FCollisionQueryParams Q(SCENE_QUERY_STAT(TSGround), false);
+	return W && W->LineTraceSingleByChannel(H, P + FVector(0, 0, 60.f), P - FVector(0, 0, 1500.f), ECC_Visibility, Q) ? H.ImpactPoint : P;
+}
+
+void ATSFX::Scar(UWorld* W, const FVector& At, const TSJson::FObj& Spec, float DefaultRadius)
+{
+	if (!W || !Spec || FMath::FRand() >= TSJson::Num(Spec, TEXT("chance"), 1)) return;   // sometimes the ground takes no mark
+	const FString Style = TSJson::Str(Spec, TEXT("style"), TEXT("cracks"));
+	const UTSData& D = UTSData::Get(W);
+	const float R = TSJson::Has(Spec, TEXT("radius")) ? D.Px(TSJson::Num(Spec, TEXT("radius"))) : DefaultRadius;
+	const TArray<TSharedPtr<FJsonValue>> LifeRange = TSJson::Arr(Spec, TEXT("life"));
+	const float Life = LifeRange.Num() == 2 ? FMath::FRandRange(float(LifeRange[0]->AsNumber()), float(LifeRange[1]->AsNumber())) : float(TSJson::Num(Spec, TEXT("life"), 20));
+	const float InDelay = float(TSJson::Num(Spec, TEXT("delay"), 0));
+
+	ATSFX* F = Make(W, At, EKind::Scar, InDelay + Life);
+	F->Radius = R;
+	F->Delay = InDelay;
+	F->MaxOpacity = float(TSJson::Num(Spec, TEXT("opacity"), 0.75));
+	F->GlowTime = TSJson::Has(Spec, TEXT("glow")) ? float(TSJson::Num(Spec, TEXT("glowTime"), 2)) : 0.f;
+
+	FTSScarBuilder B;
+	B.W = W; B.At = At; B.Radius = R;
+	FTSScarBuilder Glow = B;   // embers / the flash, drawn over the scar
+	if (Style == TEXT("scorch"))
+	{
+		B.Blotch(FVector2D::ZeroVector, R * 0.55f, 0.45f);                       // the burnt patch
+		for (int32 I = FMath::RandRange(1, 3); I > 0; --I)                         // a few scattered burns around it
+			B.Blotch(FVector2D(FMath::FRandRange(-0.5f, 0.5f), FMath::FRandRange(-0.5f, 0.5f)) * R, R * FMath::FRandRange(0.12f, 0.25f), 0.5f);
+		B.Burst(FMath::RandRange(7, 12), 0.6f, 1.f, R * 0.06f, 12.f, 0.15f, 0.3f);   // streaks blasted outward
+		for (int32 I = FMath::RandRange(4, 8); I > 0; --I)                         // embers
+			Glow.Blotch(FVector2D(FMath::FRandRange(-0.45f, 0.45f), FMath::FRandRange(-0.45f, 0.45f)) * R, R * FMath::FRandRange(0.03f, 0.07f), 0.4f);
+	}
+	else if (Style == TEXT("forks"))
+	{
+		B.Blotch(FVector2D::ZeroVector, R * 0.18f, 0.5f);                        // where it struck
+		B.Burst(FMath::RandRange(3, 6), 0.5f, 1.f, R * 0.035f, 38.f, 0.45f, 0.05f);   // jagged burn lines
+		Glow.Blotch(FVector2D::ZeroVector, R * 0.22f, 0.3f);                     // the flash
+	}
+	else
+	{
+		B.Burst(FMath::RandRange(5, 9), 0.55f, 0.95f, FMath::FRandRange(4.f, 7.f), 28.f, 0.3f, 0.12f);   // cracks
+	}
+
+	auto Section = [&](FTSScarBuilder& S, int32 Index, const FLinearColor& Color, float Intensity)
+	{
+		if (S.V.IsEmpty()) return;
+		if (!F->Crack)
+		{
+			F->Crack = NewObject<UProceduralMeshComponent>(F);
+			F->Crack->SetupAttachment(F->RootComponent);
+			F->Crack->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			F->Crack->SetCastShadow(false);
+			F->Crack->RegisterComponent();
+		}
+		TArray<FVector> Normals; Normals.Init(FVector::UpVector, S.V.Num());
+		F->Crack->CreateMeshSection(Index, S.V, S.Tri, Normals, TArray<FVector2D>(), TArray<FColor>(), TArray<FProcMeshTangent>(), false);
+		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(TSAssets::Material(F, SeeThroughMat), F);
+		M->SetVectorParameterValue(TEXT("Color"), Color);
+		M->SetScalarParameterValue(TEXT("Intensity"), Intensity);
+		M->SetScalarParameterValue(TEXT("Opacity"), 0.f);
+		F->Crack->SetMaterial(Index, M);
+		F->Mats.Add(M);   // [0] the scar, [1] the glow
+	};
+	Section(B, 0, TSJson::Color(TSJson::Str(Spec, TEXT("color"), TEXT("#2a323c"))), 1.f);
+	if (F->GlowTime > 0.f) Section(Glow, 1, TSJson::Color(TSJson::Str(Spec, TEXT("glow"))), 6.f);
+}
+
 void ATSFX::Smoke(UWorld* W, const FVector& At, float InRadius, float Duration)
 {
 	ATSFX* F = Make(W, At, EKind::Smoke, Duration + 2.f);   // + SmokeFade
@@ -173,6 +313,17 @@ void ATSFX::Tick(float Dt)
 		// In fast, hold, out over the last 30%.
 		const float In = FMath::Clamp(Age / 0.2f, 0.f, 1.f), Out = FMath::Clamp((1.f - K) / 0.3f, 0.f, 1.f);
 		Mats[0]->SetScalarParameterValue(TEXT("Opacity"), 0.42f * FMath::Min(In, Out));
+	}
+	else if (Kind == EKind::Scar && Mats.Num())
+	{
+		// Hidden until Delay, in quickly, then out over the last 3 s; the glow flares at Delay and dies over GlowTime.
+		const float In = FMath::Clamp((Age - Delay) / 0.5f, 0.f, 1.f), Out = FMath::Clamp((Life - Age) / 3.f, 0.f, 1.f);
+		Mats[0]->SetScalarParameterValue(TEXT("Opacity"), MaxOpacity * FMath::Min(In, Out));
+		if (Mats.Num() > 1)
+		{
+			const float G = Age < Delay ? 0.f : FMath::Clamp(1.f - (Age - Delay) / FMath::Max(0.05f, GlowTime), 0.f, 1.f);
+			Mats[1]->SetScalarParameterValue(TEXT("Opacity"), 0.9f * G * G);
+		}
 	}
 	else if (Kind == EKind::Bolt)
 	{

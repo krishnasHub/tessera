@@ -3,6 +3,7 @@
 #include "TSData.h"
 #include "TSAssets.h"
 #include "TSLook.h"
+#include "TSDayNight.h"
 
 #include "Engine/World.h"
 #include "Engine/DirectionalLight.h"
@@ -21,6 +22,7 @@ namespace
 	// Time of day and night vision (one world at a time).
 	float GHour = 14.f, GNight = 0.f;
 	float GHeroSight = 1000.f, GDarkStrength = 0.97f, GLightReach = 1.f;
+	float GCarriedSight = 0.f;
 	TArray<FVector> GNightLights;   // (x, y, radius)
 }
 
@@ -34,6 +36,7 @@ void ATSSky::BeginWorld(const UObject* WorldContext)
 {
 	const TSJson::FObj NV = TSJson::Obj(TSJson::Obj(UTSData::Get(WorldContext).World(), TEXT("dayNight")), TEXT("nightVision"));
 	GHeroSight = float(TSJson::Num(NV, TEXT("heroSight"), 1000));
+	GCarriedSight = 0.f;
 	GDarkStrength = float(TSJson::Num(NV, TEXT("strength"), 0.97));
 	GLightReach = float(TSJson::Num(NV, TEXT("lightReach"), 1.0));
 	GNightLights.Reset();
@@ -57,14 +60,15 @@ void ATSSky::Tick(float DeltaSeconds)
 float ATSSky::Hour() { return GHour; }
 float ATSSky::Night() { return GNight; }
 float ATSSky::Darkness() { return GDarkStrength * FMath::SmoothStep(0.45f, 1.f, GNight); }
-float ATSSky::HeroSight() { return GHeroSight; }
+float ATSSky::HeroSight() { return GHeroSight + GCarriedSight; }
+void ATSSky::SetCarriedLight(float ExtraSight) { GCarriedSight = FMath::Max(0.f, ExtraSight); }
 const TArray<FVector>& ATSSky::NightLights() { return GNightLights; }
 void ATSSky::AddNightLight(float X, float Y, float Radius) { GNightLights.Add(FVector(X, Y, Radius * GLightReach)); }
 
 bool ATSSky::IsLit(const FVector& At, const FVector& Hero)
 {
 	if (Darkness() < 0.5f) return true;
-	if (FVector::Dist2D(At, Hero) <= GHeroSight * 0.8f) return true;
+	if (FVector::Dist2D(At, Hero) <= HeroSight() * 0.8f) return true;
 	for (const FVector& L : GNightLights) if (FVector::Dist2D(At, FVector(L.X, L.Y, 0.f)) <= L.Z * 0.75f) return true;
 	return false;
 }
@@ -83,6 +87,7 @@ void ATSSky::UpdateSky()
 	const float SunElev = GHour >= Rise && GHour <= Set ? 58.f * FMath::Sin(PI * (GHour - Rise) / DayLen) : -20.f;
 	const float SunK = FMath::SmoothStep(-3.f, 9.f, SunElev);
 	GNight = 1.f - SunK;
+	if (UTSDayNight* Events = UTSDayNight::Get(this)) Events->Update(GHour, GNight);   // tell the game
 	Place(SunLight, FMath::Max(SunElev, -6.f), 180.f + (GHour - Rise) * 180.f / DayLen);
 	const float Warm = FMath::Clamp(SunElev / 32.f, 0.f, 1.f);
 	SunLight->SetLightColor(FMath::Lerp(FLinearColor(1.f, 0.48f, 0.22f), FLinearColor(1.f, 0.96f, 0.9f), Warm));

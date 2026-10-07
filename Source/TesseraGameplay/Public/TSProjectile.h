@@ -36,6 +36,8 @@ public:
 	static void ArcLaunch(const UObject* WorldContext, const FVector& From, const FVector& To, float Speed, FVector& OutVelocity, float& OutGravity, float& OutTime);
 
 	virtual void Tick(float DeltaSeconds) override;
+	/** Where it bursts, a scar on the ground (ATSFX::Scar data), if set. */
+	TSJson::FObj Scar;
 
 private:
 	UPROPERTY() TObjectPtr<USceneComponent> Root;

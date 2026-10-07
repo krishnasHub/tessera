@@ -6,6 +6,6 @@ public class TesseraGameplay : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "Json", "TesseraCore" });
-		PrivateDependencyModuleNames.AddRange(new string[] { "Niagara", "TesseraWorld" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Niagara", "TesseraWorld", "ProceduralMeshComponent" });
 	}
 }
