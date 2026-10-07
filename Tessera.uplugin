@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "0.1",
 	"FriendlyName": "Tessera",
-	"Description": "Framework for top-down HD-2D games: data-driven world and map, pixel-art sprite looks, sky with a day/night cycle, runtime navigation and camera cutaways; characters, stats, combat, abilities, items and loot; perception and stealth; top-down hero controls (camera, click-to-move, cursor, ability picker); a Slate UI kit (dialogue box, menus, cursor, night shade, toasts, HUD drawing). C++ only; every game-specific value comes from the game's data or config.",
+	"Description": "Framework for top-down HD-2D games: data-driven world and map, pixel-art sprite looks, sky with a day/night cycle, runtime navigation and camera cutaways; characters, stats, combat, abilities, items and loot; perception and stealth; top-down hero controls (camera, click-to-move, cursor, ability picker); a Slate UI kit (dialogue box, menus, cursor, night shade, toasts, HUD drawing); a self-test runner and automation switches; tools (launcher, test runner, asset and pixel-art helpers). No Unreal assets (they live in the game); every game-specific value comes from the game's data, config or hooks.",
 	"Category": "Gameplay",
 	"CreatedBy": "krishnasHub",
 	"CanContainContent": false,
@@ -12,7 +12,8 @@
 		{ "Name": "TesseraWorld", "Type": "Runtime", "LoadingPhase": "Default" },
 		{ "Name": "TesseraGameplay", "Type": "Runtime", "LoadingPhase": "Default" },
 		{ "Name": "TesseraHero", "Type": "Runtime", "LoadingPhase": "Default" },
-		{ "Name": "TesseraUI", "Type": "Runtime", "LoadingPhase": "Default" }
+		{ "Name": "TesseraUI", "Type": "Runtime", "LoadingPhase": "Default" },
+		{ "Name": "TesseraTest", "Type": "Runtime", "LoadingPhase": "Default" }
 	],
 	"Plugins": [
 		{ "Name": "ProceduralMeshComponent", "Enabled": true },

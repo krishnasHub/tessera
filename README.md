@@ -1,8 +1,12 @@
 # Tessera
 
-A small C++ framework for top-down HD-2D games in Unreal Engine 5: pixel-art sprites standing in a lit 3D world,
-built at runtime from data. No Blueprints, no assets: every game-specific value (file names, map symbols, material
-paths, command-line names, wording) comes from the game's data or config.
+A small framework for top-down HD-2D games in Unreal Engine 5: pixel-art sprites standing in a lit 3D world,
+built at runtime from data. Pull it into a new game (with [Loom](https://github.com/krishnasHub/loom) for the story)
+and you get the systems, the UI kit, the self-test runner and the tools; the game brings its data, art and rules.
+
+Lightweight in every language: C++ modules plus tools in PowerShell and Python. No Blueprints and no Unreal assets:
+the tools generate a game's materials and textures into the game's own Content. Every game-specific value (file
+names, map symbols, material paths, command-line names, wording, colours) comes from the game's data, config or hooks.
 
 | Module | What |
 |---|---|
@@ -10,7 +14,14 @@ paths, command-line names, wording) comes from the game's data or config.
 | `TesseraWorld` | `ATSWorldBuilder` (base for a game's world builder: mesh helpers, height field, cutaways, flickering lights, runtime navmesh), `ATSSky` (sun, moon, fog, grade, day/night clock, night visibility) |
 | `TesseraGameplay` | `ATSCharacter` (base for every character: stats, tags, poise, knockback, death, weapon kits, sprite, hooks for the game's rules), `UTSStatsComponent` (data-defined pools and formulas), `TSCombat` (damage pipeline), `UTSAbilityComponent` (12 built-in ability types + `RegisterType`), `ATSProjectile`, `ATSFX`, `UTSInventoryComponent` / `TSLoot` / `ATSPickup`, `UTSFeedback` (floating text, toasts, shake), `TSPerception` (sight cone, hearing, line of sight, "Hidden" stealth, threat sense), `UTSSpriteComponent`, `UTSPoseMesh`, anim-notify hooks |
 | `TesseraHero` | `UTSCameraRig` (top-down / HD-2D / flat-2D / over-the-shoulder camera from data: zoom, tilt-shift focus, shake), `UTSHeroControl` (Diablo-style mouse: cursor picking and aim assist, click-to-move on the navmesh, click-to-attack / talk with the game's rules as hooks, talk mode, slow-motion ability picker) |
+| `TesseraTest` | `ATSTestRunner` (base for a game's scripted self-tests: steps, reports, quit, screenshots, real clicks), `TSTestSwitches` (`-<P>Test=`, `-<P>Shot=`, `-<P>Cam=`, `-<P>QuitAfter=`) |
 | `TesseraUI` | Slate kit, no assets: `FTSUIStyle` / `TSUI` helpers, `FTSChoose` (menu choose-flash-fade), `STSDialogueBox` (fed by an `FTSDialogueView`: any story system), `STSTitle`, `STSPauseMenu`, `STSCursor`, `STSNightShade`, `STSToasts`, `STSAbilityPicker`, `TSHUDDraw` (canvas: text, bars, floaters, ground ring, threat arrows) |
+
+| Tools | What |
+|---|---|
+| `Tools/Tessera.ps1` | Build, play, test (parallel, sized to the PC), package, screenshots, prepare assets, art, data sync; configured by the game's `tessera.json` (see the script's header) |
+| `Tools/unreal/tessera_assets.py` | For the editor's Python: material-graph helpers, pixel-art texture import, and the materials Tessera's C++ drives (sprite, pixel world, night shade, glow, telegraph, fresnel, flash) |
+| `Tools/pixelart/tspixel/` | Python + numpy: PNG writer, colours, drawing helpers, and the character sprite-sheet layout `UTSSpriteComponent` plays |
 
 Story and dialogue live in a separate plugin, [Loom](https://github.com/krishnasHub/loom); Tessera doesn't depend on it.
 
@@ -21,13 +32,21 @@ git submodule add https://github.com/krishnasHub/tessera.git <Project>/Plugins/T
 ```
 
 Enable it in the `.uproject` (`{ "Name": "Tessera", "Enabled": true }`), add the modules you use (`"TesseraCore"`, `"TesseraWorld"`,
-`"TesseraGameplay"`, `"TesseraHero"`, `"TesseraUI"`) to the game module's dependencies, and tell Tessera about the game in `Config/DefaultGame.ini`:
+`"TesseraGameplay"`, `"TesseraHero"`, `"TesseraUI"`, `"TesseraTest"`) to the game module's dependencies, and tell Tessera about the game in `Config/DefaultGame.ini`:
 
 ```ini
 [Tessera]
 DataFile=Data/game.json     ; relative to Content (stage the folder as loose files when packaging)
 WorldSection=world          ; the data section with the world / look / sky settings
 CommandPrefix=TS            ; command-line switches: -TSLook=hd2d, -TSHour=22, -TSSun=..., -TSFog=0
+ShotFolder=Screenshots/TS   ; (optional) under Saved/, where test screenshots go
+```
+
+Then give the game a `tessera.json` and a one-line launcher:
+
+```powershell
+# play.ps1 in the game's repo root
+& "$PSScriptRoot\<Project>\Plugins\Tessera\Tools\Tessera.ps1" -Config "$PSScriptRoot\tessera.json" @args
 ```
 
 ## Use it
@@ -60,6 +79,14 @@ Control->Attack = [this]() { /* swing */ };
 Control->Talk = [this](ATSCharacter* Who) { /* open the conversation */ };
 // Input: LMB -> if (!Control->HandlePrimaryPress()) Attack in place; wheel -> if (!Control->HandleWheel(W)) Rig->Zoom(W);
 // Tick: AddMovementInput(Control->Update(Dt));
+
+// Self-tests: derive a runner, and hand its class to the switches (game mode StartPlay).
+void AMySelfTest::RunStep()
+{
+	if (Scenario == TEXT("walk") && Step == 0) { /* click somewhere */ Step = 1; Next = T + 2.f; }
+	else if (Step == 1) { Report(bArrived ? TEXT("PASS: arrived") : TEXT("FAIL: stuck")); Quit(0.5f); }
+}
+TSTestSwitches::Run(GetWorld(), AMySelfTest::StaticClass());
 
 // A dialogue box for any story system. With Loom:
 FTSDialogueView V;
