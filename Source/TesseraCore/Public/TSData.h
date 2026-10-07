@@ -5,6 +5,13 @@
 #include "TSJson.h"
 #include "TSData.generated.h"
 
+/** On-screen words Tessera shows, each overridable in <world>.text: TSText::Get(Ctx, "block", "BLOCK").
+ *  {name} placeholders are filled from Args. */
+namespace TSText
+{
+	TESSERACORE_API FString Get(const UObject* WorldContext, const FString& Key, const FString& Default, const TMap<FString, FString>& Args = {});
+}
+
 /** One spawn marker from the map, resolved through map.spawns ("P": "player", "g": "enemy:guard"). */
 struct FTSSpawn
 {
@@ -48,6 +55,8 @@ public:
 	/** e.g. Entry("enemies", "guard") */
 	TSJson::FObj Entry(const FString& SectionName, const FString& Id) const { return TSJson::Obj(Section(SectionName), Id); }
 	double Tuning(const FString& Key, double Default = 0.0) const { return TSJson::Num(Section(TEXT("tuning")), Key, Default); }
+	/** O[Key] as a number, or as the name of a tuning number ("staminaRegen" -> tuning.staminaRegen). */
+	double Value(const TSJson::FObj& O, const FString& Key, double Default = 0.0) const;
 	/** The world / look / sky settings ([Tessera] WorldSection). */
 	TSJson::FObj World() const { return Section(WorldSection); }
 

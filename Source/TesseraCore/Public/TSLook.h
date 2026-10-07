@@ -17,7 +17,7 @@ class UObject;
  * Gameplay is identical in every look: only what is drawn changes.
  *
  * Data (<world>.looks2d): spriteUnits { hd2d, flat2d } (world units per sprite pixel), hd2dCamera.pitch, pixelSize,
- * pixelMaterials { <material name>: <texture> }, materials { sprite, pixelWorld } (object paths), textureFolder.
+ * pixelMaterials { <material name>: <texture> }, textureFolder; <world>.assets { sprite, pixelWorld } (materials).
  * Camera: <world>.camera.topdown { pitch, yaw }.
  */
 namespace TSLook

@@ -94,3 +94,18 @@ FString UTSData::RegionAt(float WorldY) const
 	}
 	return Last;
 }
+
+double UTSData::Value(const TSJson::FObj& O, const FString& Key, double Default) const
+{
+	const TSharedPtr<FJsonValue> V = O.IsValid() ? O->TryGetField(Key) : nullptr;
+	if (!V) return Default;
+	if (V->Type == EJson::String) return Tuning(V->AsString(), Default);
+	return V->Type == EJson::Number ? V->AsNumber() : Default;
+}
+
+FString TSText::Get(const UObject* WorldContext, const FString& Key, const FString& Default, const TMap<FString, FString>& Args)
+{
+	FString Out = TSJson::Str(TSJson::Obj(UTSData::Get(WorldContext).World(), TEXT("text")), Key, Default);
+	for (const auto& KV : Args) Out = Out.Replace(*(TEXT("{") + KV.Key + TEXT("}")), *KV.Value);
+	return Out;
+}

@@ -3,15 +3,17 @@
 	"Version": 1,
 	"VersionName": "0.1",
 	"FriendlyName": "Tessera",
-	"Description": "Framework for top-down HD-2D games: data-driven world and map, pixel-art sprite looks, sky with a day/night cycle, runtime navigation and camera cutaways. C++ only; every game-specific value comes from the game's data or config.",
+	"Description": "Framework for top-down HD-2D games: data-driven world and map, pixel-art sprite looks, sky with a day/night cycle, runtime navigation and camera cutaways; characters, stats, combat, abilities, items and loot. C++ only; every game-specific value comes from the game's data or config.",
 	"Category": "Gameplay",
 	"CreatedBy": "krishnasHub",
 	"CanContainContent": false,
 	"Modules": [
 		{ "Name": "TesseraCore", "Type": "Runtime", "LoadingPhase": "Default" },
-		{ "Name": "TesseraWorld", "Type": "Runtime", "LoadingPhase": "Default" }
+		{ "Name": "TesseraWorld", "Type": "Runtime", "LoadingPhase": "Default" },
+		{ "Name": "TesseraGameplay", "Type": "Runtime", "LoadingPhase": "Default" }
 	],
 	"Plugins": [
-		{ "Name": "ProceduralMeshComponent", "Enabled": true }
+		{ "Name": "ProceduralMeshComponent", "Enabled": true },
+		{ "Name": "Niagara", "Enabled": true }
 	]
 }

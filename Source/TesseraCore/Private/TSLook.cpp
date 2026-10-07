@@ -13,8 +13,8 @@ namespace
 	TSJson::FObj GCfg;            // <world>.looks2d
 	TSJson::FObj GTopDown;        // <world>.camera.topdown
 	TMap<FString, TStrongObjectPtr<UMaterialInstanceDynamic>> GCache;
+	FString GSpriteMat, GPixelMat;   // <world>.assets.sprite / .pixelWorld
 
-	FString MatPath(const TCHAR* Which) { return TSJson::Str(TSJson::Obj(GCfg, TEXT("materials")), Which); }
 	UTexture2D* PixelTex(const FString& Name) { return TSAssets::Load<UTexture2D>(TSAssets::ObjPath(TSJson::Str(GCfg, TEXT("textureFolder")), Name)); }
 }
 
@@ -27,6 +27,8 @@ void TSLook::Init(const UObject* WorldContext)
 	TSCmd::Value(TEXT("Look"), Name);
 	GMode = Name == TEXT("hd2d") ? EMode::HD2D : Name == TEXT("flat2d") ? EMode::Flat2D : EMode::Mesh3D;
 	GCache.Reset();
+	GSpriteMat = TSAssets::Path(WorldContext, TEXT("sprite"));
+	GPixelMat = TSAssets::Path(WorldContext, TEXT("pixelWorld"));
 	UE_LOG(LogTessera, Display, TEXT("Look: %s"), ModeName());
 }
 
@@ -66,7 +68,7 @@ UMaterialInterface* TSLook::PixelTexture(const FString& TexName)
 {
 	const FString Key = TEXT("world:") + TexName;
 	if (const TStrongObjectPtr<UMaterialInstanceDynamic>* Hit = GCache.Find(Key)) return Hit->Get();
-	UMaterialInterface* Base = TSAssets::Load<UMaterialInterface>(MatPath(TEXT("pixelWorld")));
+	UMaterialInterface* Base = TSAssets::Load<UMaterialInterface>(GPixelMat);
 	UTexture2D* Tex = PixelTex(TEXT("TX_") + TexName);
 	if (!Base || !Tex) return nullptr;
 	UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, GetTransientPackage());
@@ -85,7 +87,7 @@ UMaterialInterface* TSLook::PixelMaterial(const FString& MaterialName)
 
 UMaterialInstanceDynamic* TSLook::SpriteMaterial(UObject* Outer, const FString& Texture, int32 Cols, int32 Rows)
 {
-	UMaterialInterface* Base = TSAssets::Load<UMaterialInterface>(MatPath(TEXT("sprite")));
+	UMaterialInterface* Base = TSAssets::Load<UMaterialInterface>(GSpriteMat);
 	UTexture2D* Tex = PixelTex(Texture);
 	if (!Base || !Tex) return nullptr;
 	UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(Base, Outer);
