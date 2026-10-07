@@ -91,6 +91,8 @@ public:
 	virtual FString ParleyNode() const { return FString(); }
 	/** Smoke, a feint...: forget the hero if hunting them. */
 	virtual void LoseTrack() {}
+	/** After the hero right now (chasing, winding up, recovering): blocking turns toward it, threat sense shows it. */
+	virtual bool IsHunting() const { return false; }
 	/** Showing an attack wind-up (sprites hold the wind-up frame). */
 	virtual bool IsWindingUp() const { return bSpriteHold; }
 

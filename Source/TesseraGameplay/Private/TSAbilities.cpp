@@ -5,6 +5,7 @@
 #include "TSFeedback.h"
 #include "TSFX.h"
 #include "TSProjectile.h"
+#include "TSPerception.h"
 
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
@@ -141,7 +142,7 @@ bool UTSAbilityComponent::TryActivate(int32 Slot)
 
 	const FTypeFn* Fn = Types().Find(TSJson::Str(D, TEXT("type")));
 	if (!Fn) { UE_LOG(LogTessera, Warning, TEXT("Unknown ability type %s"), *TSJson::Str(D, TEXT("type"))); return false; }
-	C->Tags.Remove(TEXT("Hidden"));   // acting breaks stealth (a smoke bomb re-applies it)
+	TSPerception::Reveal(C);   // acting breaks stealth (a smoke bomb re-applies it)
 	if (!(*Fn)(Ctx)) return false;
 	C->OnAbilityUsed(D);
 	for (const auto& KV : D->Values) if (C->Stats->IsPool(FName(*KV.Key))) C->Stats->Spend(FName(*KV.Key), float(KV.Value->AsNumber()));
@@ -305,7 +306,7 @@ void UTSAbilityComponent::RegisterBuiltIns()
 		const float Duration = float(X.Num(TEXT("duration"), 3));
 		const float StaggerTime = float(X.Num(TEXT("stagger"), 0));
 		ATSFX::Smoke(X.World, X.Ground, R, Duration);
-		P->Tags.Add(TEXT("Hidden"), Duration);
+		TSPerception::Hide(P, Duration);
 		for (ATSCharacter* E : TSCombat::Opponents(P))
 		{
 			const float Dist = FVector::Dist2D(E->GetActorLocation(), P->GetActorLocation());
