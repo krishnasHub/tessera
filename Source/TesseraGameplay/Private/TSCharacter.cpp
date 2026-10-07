@@ -5,6 +5,7 @@
 #include "TSAssets.h"
 #include "TSCombat.h"
 #include "TSAreaEvents.h"
+#include "TSCharacterEvents.h"
 #include "EngineUtils.h"
 
 #include "Components/CapsuleComponent.h"
@@ -196,6 +197,7 @@ void ATSCharacter::Die(AActor* Killer)
 	DeathTime = 0.f;
 	GetCharacterMovement()->DisableMovement();
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (UTSCharacterEvents* Events = UTSCharacterEvents::Get(this)) Events->OnDied.Broadcast(this, Killer);   // tell the game
 }
 
 void ATSCharacter::Tick(float DeltaSeconds)

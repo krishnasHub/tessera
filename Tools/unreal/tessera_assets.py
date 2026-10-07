@@ -8,6 +8,7 @@ ships no assets: each game runs its own script that calls these, and the assets 
               name prefixes that import smooth instead (e.g. high-res portraits)
   Tessera's   the materials Tessera's C++ drives, with the parameters it sets:
   materials     sprite()       <world>.assets.sprite      Tex, Cols, Rows, Col, Row, Flip, Tint, Flash, Emissive
+                                                          (see_through=True: translucent, + Opacity)
                 pixel_world()  <world>.assets.pixelWorld  Tex, Size, Tint
                 night_shade()  <world>.assets.nightShade  Night, Hero, Light0..7
                 glow()         <world>.assets.glow        Color, Intensity
@@ -156,12 +157,12 @@ def import_textures(src_dir, dest, smooth_prefixes=()):
 
 # --- Tessera's materials -------------------------------------------------------------------------------
 
-def sprite(folder, name, default_texture=None, cols=4.0, rows=13.0):
+def sprite(folder, name, default_texture=None, cols=4.0, rows=13.0, see_through=False):
     """Masked, lit, two-sided card playing one frame of a sprite sheet. Its normal is world-up, so a card facing
     the camera is lit like the ground under it. Params: Tex, Cols, Rows, Col, Row, Flip (mirror), Tint, Flash
-    (hit flash), Emissive."""
+    (hit flash), Emissive. see_through: translucent instead of masked, with an Opacity param (ghosts, spirits)."""
     m = fresh(folder, name)
-    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT if see_through else unreal.BlendMode.BLEND_MASKED)
     m.set_editor_property("two_sided", True)
     m.set_editor_property("tangent_space_normal", False)
     m.set_editor_property("opacity_mask_clip_value", 0.5)
@@ -189,7 +190,13 @@ def sprite(folder, name, default_texture=None, cols=4.0, rows=13.0):
     mel.connect_material_expressions(flash, "", emis, "A")
     mel.connect_material_expressions(scalar(m, "Emissive", 0.0, -400, 440), "", emis, "B")
     mel.connect_material_property(emis, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
-    mel.connect_material_property(tex, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
+    if see_through:
+        alpha = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -200, 760)
+        mel.connect_material_expressions(tex, "A", alpha, "A")
+        mel.connect_material_expressions(scalar(m, "Opacity", 0.6, -400, 760), "", alpha, "B")
+        mel.connect_material_property(alpha, "", unreal.MaterialProperty.MP_OPACITY)
+    else:
+        mel.connect_material_property(tex, "A", unreal.MaterialProperty.MP_OPACITY_MASK)
     mel.connect_material_property(const3(m, (0, 0, 1), -200, 500), "", unreal.MaterialProperty.MP_NORMAL)
     mel.connect_material_property(const(m, 1.0, -200, 600), "", unreal.MaterialProperty.MP_ROUGHNESS)
     mel.connect_material_property(const(m, 0.1, -200, 680), "", unreal.MaterialProperty.MP_SPECULAR)

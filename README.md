@@ -20,7 +20,7 @@ names, map symbols, material paths, command-line names, wording, colours) comes 
 | Tools | What |
 |---|---|
 | `Tools/Tessera.ps1` | Build, play, test (parallel, sized to the PC), package, screenshots, prepare assets, art, data sync; configured by the game's `tessera.json` (see the script's header) |
-| `Tools/unreal/tessera_assets.py` | For the editor's Python: material-graph helpers, pixel-art texture import, and the materials Tessera's C++ drives (sprite, pixel world, night shade, glow, telegraph, fresnel, flash) |
+| `Tools/unreal/tessera_assets.py` | For the editor's Python: material-graph helpers, pixel-art texture import, and the materials Tessera's C++ drives (sprite (also see-through), pixel world, night shade, glow, telegraph, fresnel, flash) |
 | `Tools/pixelart/tspixel/` | Python + numpy: PNG writer, colours, drawing helpers, and the character sprite-sheet layout `UTSSpriteComponent` plays |
 
 Story and dialogue live in a separate plugin, [Loom](https://github.com/krishnasHub/loom); Tessera doesn't depend on it.
@@ -108,6 +108,7 @@ passes on what the story needs, e.g. a "time of day" flag or condition):
 |---|---|
 | `OnPhase` (day / dusk / night / dawn), `OnHour`, `OnNightLevel` (0-1, smooth) | `UTSDayNight` |
 | `OnStatus` (an area got a tag, e.g. Frozen), `OnPush` (a barrier went up) | `UTSAreaEvents` |
+| `OnDied` (who, and who killed them) | `UTSCharacterEvents` |
 | `OnChanged` | `UTSInventoryComponent` |
 
 Going the other way, the game tells Tessera what it can't know: `ATSSky::SetCarriedLight` (the hero carries a light),
