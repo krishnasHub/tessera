@@ -3,6 +3,9 @@
 #include "TSLook.h"
 #include "TSData.h"
 #include "TSAssets.h"
+#include "TSCombat.h"
+#include "TSAreaEvents.h"
+#include "EngineUtils.h"
 
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -209,6 +212,22 @@ void ATSCharacter::Tick(float DeltaSeconds)
 
 	Tags.Tick(DeltaSeconds);
 
+	// Frozen: stand still, the 3D body's animation stops (a sprite holds its frame), no knockback.
+	const bool bFrozen = IsFrozen();
+	if (USkeletalMeshComponent* Body = GetMesh()) Body->bPauseAnims = bFrozen;
+	if (bFrozen)
+	{
+		GetCharacterMovement()->StopMovementImmediately();
+		KnockVelocity = FVector::ZeroVector;
+	}
+
+	// A barrier guard (keepOut): hold opponents at its edge, after everyone has moved this frame (UTSKeepOut).
+	if (!KeepOut && GuardStyle() && TSJson::Num(GuardStyle(), TEXT("keepOut"), 0) > 0)
+	{
+		KeepOut = NewObject<UTSKeepOut>(this, TEXT("KeepOut"));
+		KeepOut->RegisterComponent();
+	}
+
 	// Knockback decays fast (x0.002 per second).
 	if (KnockVelocity.SizeSquared() > 25.f)
 	{
@@ -221,6 +240,73 @@ void ATSCharacter::Tick(float DeltaSeconds)
 
 	PoiseTimer -= DeltaSeconds;
 	if (PoiseTimer <= 0.f) Poise = MaxPoise;
+}
+
+void ATSCharacter::HoldOutOpponents()
+{
+	const TSJson::FObj Guard = bDead ? nullptr : GuardStyle();
+	const double Px = Guard ? TSJson::Num(Guard, TEXT("keepOut"), 0) : 0;
+	if (Px <= 0) { BarrierUpFor = 0.f; return; }
+	const bool bJustRaised = BarrierUpFor == 0.f;
+	BarrierUpFor += GetWorld()->GetDeltaSeconds();
+	const float R = UTSData::Get(this).Px(Px);
+	const FVector Me = GetActorLocation();
+	if (bJustRaised)   // non-characters inside (animals...) are the game's to throw
+		if (UTSAreaEvents* Events = UTSAreaEvents::Get(this)) Events->OnPush.Broadcast(Me, R);
+	for (TActorIterator<ATSCharacter> It(GetWorld()); It; ++It)
+	{
+		ATSCharacter* E = *It;
+		if (E == this || E->IsDead() || E->IsLeaving()) continue;
+		FVector To = E->GetActorLocation() - Me;
+		To.Z = 0.f;
+		const float Min = R + E->Radius();
+		const float Dist = To.Size();
+		if (Dist >= Min) continue;
+		const FVector Out = To.IsNearlyZero() ? -Facing() : To / Dist;
+		if (bJustRaised)
+		{
+			// Caught inside as it goes up: thrown clear. Knockback slides ~1/6.2 of its speed before it stops
+			// (it decays x0.002 per second), so this lands it a little past the edge.
+			E->KnockVelocity = Out * (Min - Dist + 60.f) * 6.2f;
+			E->Stagger(0.4f);
+			continue;
+		}
+		if (E->KnockVelocity.SizeSquared() > 25.f && FVector::DotProduct(E->KnockVelocity, Out) > 0.f) continue;   // still flying out
+		E->SetActorLocation(FVector(Me.X, Me.Y, E->GetActorLocation().Z) + Out * Min);
+		// Drop whatever carried it inward (walking, a lunge).
+		FVector& V = E->GetCharacterMovement()->Velocity;
+		const float In = FVector::DotProduct(V, -Out);
+		if (In > 0.f) V += Out * In;
+		E->KnockVelocity = FVector::ZeroVector;
+	}
+}
+
+UTSKeepOut::UTSKeepOut()
+{
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.TickGroup = TG_PostPhysics;   // after every character's movement this frame
+}
+
+void UTSKeepOut::TickComponent(float Dt, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(Dt, TickType, ThisTickFunction);
+	if (ATSCharacter* C = Cast<ATSCharacter>(GetOwner())) C->HoldOutOpponents();
+}
+
+bool ATSCharacter::TintForTag(const UObject* WorldContext, FName Tag, FLinearColor& Out)
+{
+	const TSJson::FObj Tints = TSJson::Obj(UTSData::Get(WorldContext).World(), TEXT("statusTints"));
+	const FString Hex = TSJson::Str(Tints, Tag.ToString());
+	if (Hex.IsEmpty()) return false;
+	Out = TSJson::Color(Hex);
+	return true;
+}
+
+FLinearColor ATSCharacter::StatusTint() const
+{
+	FLinearColor C;
+	for (const auto& KV : Tags.Map) if (TintForTag(this, KV.Key, C)) return C;
+	return FLinearColor::White;
 }
 
 // ---------------------------------------------------------------------------------------------

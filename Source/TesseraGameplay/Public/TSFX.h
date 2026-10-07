@@ -13,6 +13,8 @@ class UPointLightComponent;
  *   Ring      expanding ground ring (area spells, level-up, heals)
  *   Bolt      glowing segments between points (chain lightning, a beam of words)
  *   Burst     brief glow sphere + light (impacts, teleports)
+ *   Sphere    a see-through sphere that swells to its radius around a point, then fades (a frost nova)
+ *   Stain     a coloured disc on the ground that lingers, then fades (frozen ground, scorch, poison pool)
  *   Smoke     particle smoke (<world>.assets.smoke), switched off after its duration
  */
 UCLASS()
@@ -27,11 +29,13 @@ public:
 	static void Ring(UWorld* W, const FVector& At, float Radius, const FLinearColor& Color, float Life = 0.4f);
 	static void Bolt(UWorld* W, const TArray<FVector>& Points, const FLinearColor& Color, float Life = 0.25f);
 	static void Burst(UWorld* W, const FVector& At, float Radius, const FLinearColor& Color, float Life = 0.3f);
+	static void Sphere(UWorld* W, const FVector& At, float Radius, const FLinearColor& Color, float Life = 0.7f);
+	static void Stain(UWorld* W, const FVector& At, float Radius, const FLinearColor& Color, float Life = 3.f);
 	/** A smoke cloud that lasts Duration seconds, then stops puffing and drifts away (the emitter loops otherwise). */
 	static void Smoke(UWorld* W, const FVector& At, float Radius, float Duration);
 
 private:
-	enum class EKind : uint8 { Ring, Bolt, Burst, Smoke } Kind = EKind::Ring;
+	enum class EKind : uint8 { Ring, Bolt, Burst, Smoke, Sphere, Stain } Kind = EKind::Ring;
 	float Age = 0.f, Life = 0.4f, Radius = 100.f;
 	UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Parts;
 	UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> Mats;

@@ -52,7 +52,10 @@ void UTSSpriteComponent::TickComponent(float Dt, ELevelTick TickType, FActorComp
 	Super::TickComponent(Dt, TickType, ThisTickFunction);
 	ATSCharacter* C = Cast<ATSCharacter>(GetOwner());
 	if (!C || !Mat) return;
-	Clock += Dt;
+	const bool bFrozen = C->IsFrozen();
+	if (!bFrozen) Clock += Dt;
+	const FLinearColor Tint = C->StatusTint();   // e.g. whitish blue while frozen (<world>.statusTints)
+	if (!Tint.Equals(LastTint)) { Mat->SetVectorParameterValue(TEXT("Tint"), Tint); LastTint = Tint; }
 
 	// Keep the 3D body hidden (weapon kits are rebuilt on style swaps). It still animates underneath.
 	HideCheck -= Dt;
@@ -76,7 +79,8 @@ void UTSSpriteComponent::TickComponent(float Dt, ELevelTick TickType, FActorComp
 	int32 Row = 0, Col = 0;
 	const float SinceAttack = GetWorld()->GetTimeSeconds() - C->SpriteAttackAt;
 	const bool bWindup = C->IsWindingUp();
-	if (C->IsDead()) { Row = 12; Col = 0; }
+	if (bFrozen) { Row = HeldRow; Col = HeldCol; }   // frozen mid-step: hold the frame
+	else if (C->IsDead()) { Row = 12; Col = 0; }
 	else
 	{
 		int32 Act = Idle;
@@ -88,10 +92,11 @@ void UTSSpriteComponent::TickComponent(float Dt, ELevelTick TickType, FActorComp
 		else { Act = Idle; Col = int32(Clock * 2.2f) % 2; }
 		if (Act >= 0) Row = Dir * 4 + Act;
 	}
+	HeldRow = Row; HeldCol = Col;
 	Mat->SetScalarParameterValue(TEXT("Row"), float(Row));
 	Mat->SetScalarParameterValue(TEXT("Col"), float(Col));
 	Mat->SetScalarParameterValue(TEXT("Flip"), bFlip ? 1.f : 0.f);
-	Mat->SetScalarParameterValue(TEXT("Flash"), HurtT > 0.f ? 0.75f : 0.f);
+	Mat->SetScalarParameterValue(TEXT("Flash"), HurtT > 0.f && !bFrozen ? 0.75f : 0.f);
 
 	// Placement: the card's bottom edge at the feet (the art leaves ~2 px under the boots).
 	const float Units = TSLook::SpriteUnits() * C->GetActorScale3D().Z;

@@ -103,6 +103,31 @@ void ATSFX::Burst(UWorld* W, const FVector& At, float InRadius, const FLinearCol
 	F->Light->RegisterComponent();
 }
 
+void ATSFX::Sphere(UWorld* W, const FVector& At, float InRadius, const FLinearColor& Color, float InLife)
+{
+	ATSFX* F = Make(W, At, EKind::Sphere, InLife);
+	F->Radius = InRadius;
+	UStaticMeshComponent* S = F->AddPart(TEXT("Sphere"), SeeThroughMat, Color, 2.5f);
+	S->SetRelativeScale3D(FVector(InRadius / 50.f * 0.15f));
+	F->Light = NewObject<UPointLightComponent>(F);
+	F->Light->SetupAttachment(F->RootComponent);
+	F->Light->SetRelativeLocation(FVector(0, 0, InRadius * 0.3f));
+	F->Light->SetIntensityUnits(ELightUnits::Candelas);
+	F->Light->SetLightColor(Color);
+	F->Light->SetIntensity(F->LightBase = 150.f);
+	F->Light->SetAttenuationRadius(InRadius * 2.5f);
+	F->Light->SetCastShadows(false);
+	F->Light->RegisterComponent();
+}
+
+void ATSFX::Stain(UWorld* W, const FVector& At, float InRadius, const FLinearColor& Color, float InLife)
+{
+	ATSFX* F = Make(W, At + FVector(0, 0, 3.f), EKind::Stain, InLife);
+	F->Radius = InRadius;
+	UStaticMeshComponent* Disc = F->AddPart(TEXT("Cylinder"), SeeThroughMat, Color, 1.6f);
+	Disc->SetRelativeScale3D(FVector(InRadius / 50.f, InRadius / 50.f, 0.01f));
+}
+
 void ATSFX::Smoke(UWorld* W, const FVector& At, float InRadius, float Duration)
 {
 	ATSFX* F = Make(W, At, EKind::Smoke, Duration + 2.f);   // + SmokeFade
@@ -134,6 +159,20 @@ void ATSFX::Tick(float Dt)
 	{
 		Parts[0]->SetRelativeScale3D(FVector(Radius / 50.f * (1.f + K * 0.6f)));
 		Mats[0]->SetScalarParameterValue(TEXT("Opacity"), 0.5f * (1.f - K));
+	}
+	else if (Kind == EKind::Sphere && Parts.Num())
+	{
+		// Swell quickly (ease out) to the full radius in the first 45%, then fade while it hangs there.
+		const float Grow = FMath::Clamp(K / 0.45f, 0.f, 1.f);
+		const float R = Radius * (0.15f + 0.85f * (1.f - FMath::Square(1.f - Grow)));
+		Parts[0]->SetRelativeScale3D(FVector(R / 50.f));
+		Mats[0]->SetScalarParameterValue(TEXT("Opacity"), K < 0.45f ? 0.4f : 0.4f * (1.f - (K - 0.45f) / 0.55f));
+	}
+	else if (Kind == EKind::Stain && Parts.Num())
+	{
+		// In fast, hold, out over the last 30%.
+		const float In = FMath::Clamp(Age / 0.2f, 0.f, 1.f), Out = FMath::Clamp((1.f - K) / 0.3f, 0.f, 1.f);
+		Mats[0]->SetScalarParameterValue(TEXT("Opacity"), 0.42f * FMath::Min(In, Out));
 	}
 	else if (Kind == EKind::Bolt)
 	{

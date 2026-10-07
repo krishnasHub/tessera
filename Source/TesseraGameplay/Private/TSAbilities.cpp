@@ -6,6 +6,8 @@
 #include "TSFX.h"
 #include "TSProjectile.h"
 #include "TSPerception.h"
+#include "TSAreaEvents.h"
+#include "EngineUtils.h"
 
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
@@ -189,18 +191,35 @@ void UTSAbilityComponent::RegisterBuiltIns()
 		return true;
 	});
 
-	T.Add(TEXT("aoe"), [](const FTSAbilityContext& X)   // a cleave, a frost nova (applyTag: slowed)
+	// A cleave, a frost nova. Data: radius, damage; applyTag { tag, duration, everyone } (everyone: every character in
+	// the area gets the tag, not just the opponents hit, and the area is announced through UTSAreaEvents);
+	// fx { shape: "ring" | "sphere", ground: seconds of a stain on the ground, groundColor }.
+	T.Add(TEXT("aoe"), [](const FTSAbilityContext& X)
 	{
 		ATSCharacter* P = X.Caster;
 		const float R = X.Dist(TEXT("radius"), 80);
-		ATSFX::Ring(X.World, X.Ground, R, X.Color, 0.4f);
+		const TSJson::FObj Fx = TSJson::Obj(X.Def, TEXT("fx"));
+		if (TSJson::Str(Fx, TEXT("shape"), TEXT("ring")) == TEXT("sphere")) ATSFX::Sphere(X.World, X.Ground, R, X.Color, float(TSJson::Num(Fx, TEXT("time"), 0.7)));
+		else ATSFX::Ring(X.World, X.Ground, R, X.Color, 0.4f);
+		if (const double Ground = TSJson::Num(Fx, TEXT("ground"), 0))
+			ATSFX::Stain(X.World, X.Ground, R, TSJson::Has(Fx, TEXT("groundColor")) ? TSJson::Color(TSJson::Str(Fx, TEXT("groundColor"))) : X.Color, float(Ground));
+
 		const TSJson::FObj Tag = TSJson::Obj(X.Def, TEXT("applyTag"));
+		const FName TagName = Tag ? FName(TSJson::Str(Tag, TEXT("tag"))) : NAME_None;
+		const float TagTime = Tag ? float(TSJson::Num(Tag, TEXT("duration"), 3)) : 0.f;
+		auto InArea = [&](const ATSCharacter* E) { return FVector::Dist2D(E->GetActorLocation(), P->GetActorLocation()) <= R + E->Radius(); };
 		for (ATSCharacter* E : TSCombat::Opponents(P))
 		{
-			if (FVector::Dist2D(E->GetActorLocation(), P->GetActorLocation()) > R + E->Radius()) continue;
+			if (!InArea(E)) continue;
 			FTSHit H = X.MakeHit(float(X.Num(TEXT("damage"), 10)));
 			H.Dir = (E->GetActorLocation() - P->GetActorLocation()).GetSafeNormal2D();
-			if (TSCombat::Deal(P, E, H) && Tag) E->Tags.Add(FName(TSJson::Str(Tag, TEXT("tag"))), float(TSJson::Num(Tag, TEXT("duration"), 3)));
+			if (TSCombat::Deal(P, E, H) && Tag) E->Tags.Add(TagName, TagTime);
+		}
+		if (Tag && TSJson::Bool(Tag, TEXT("everyone")))
+		{
+			for (TActorIterator<ATSCharacter> It(X.World); It; ++It)
+				if (*It != P && !It->IsDead() && InArea(*It)) It->Tags.Add(TagName, TagTime);
+			if (UTSAreaEvents* Events = UTSAreaEvents::Get(X.World)) Events->OnStatus.Broadcast(X.Ground, R, TagName, TagTime);
 		}
 		return true;
 	});

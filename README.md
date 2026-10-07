@@ -12,7 +12,7 @@ names, map symbols, material paths, command-line names, wording, colours) comes 
 |---|---|
 | `TesseraCore` | `UTSData` (JSON game data, units, tile map, spawns, regions), `TSLook` (3D / HD-2D / flat 2D looks, sprite and pixel materials), `TSAssets`, `TSJson`, `TSCmd` / `TSConfig` |
 | `TesseraWorld` | `ATSWorldBuilder` (base for a game's world builder: mesh helpers, height field, cutaways, flickering lights, runtime navmesh), `ATSSky` (sun, moon, fog, grade, day/night clock, night visibility) |
-| `TesseraGameplay` | `ATSCharacter` (base for every character: stats, tags, poise, knockback, death, weapon kits, sprite, hooks for the game's rules), `UTSStatsComponent` (data-defined pools and formulas), `TSCombat` (damage pipeline), `UTSAbilityComponent` (12 built-in ability types + `RegisterType`), `ATSProjectile`, `ATSFX`, `UTSInventoryComponent` / `TSLoot` / `ATSPickup`, `UTSFeedback` (floating text, toasts, shake), `TSPerception` (sight cone, hearing, line of sight, "Hidden" stealth, threat sense), `UTSSpriteComponent`, `UTSPoseMesh`, anim-notify hooks |
+| `TesseraGameplay` | `ATSCharacter` (base for every character: stats, tags, poise, knockback, death, weapon kits, sprite, hooks for the game's rules), `UTSStatsComponent` (data-defined pools and formulas), `TSCombat` (damage pipeline), `UTSAbilityComponent` (12 built-in ability types + `RegisterType`), `ATSProjectile`, `ATSFX`, `UTSInventoryComponent` / `TSLoot` / `ATSPickup`, `UTSFeedback` (floating text, toasts, shake), `UTSAreaEvents` (area effects for non-characters: status, push), `TSPerception` (sight cone, hearing, line of sight, "Hidden" stealth, threat sense), `UTSSpriteComponent`, `UTSPoseMesh`, anim-notify hooks |
 | `TesseraHero` | `UTSCameraRig` (top-down / HD-2D / flat-2D / over-the-shoulder camera from data: zoom, tilt-shift focus, shake), `UTSHeroControl` (Diablo-style mouse: cursor picking and aim assist, click-to-move on the navmesh, click-to-attack / talk with the game's rules as hooks, talk mode, slow-motion ability picker) |
 | `TesseraTest` | `ATSTestRunner` (base for a game's scripted self-tests: steps, reports, quit, screenshots, real clicks), `TSTestSwitches` (`-<P>Test=`, `-<P>Shot=`, `-<P>Cam=`, `-<P>QuitAfter=`) |
 | `TesseraUI` | Slate kit, no assets: `FTSUIStyle` / `TSUI` helpers, `FTSChoose` (menu choose-flash-fade), `STSDialogueBox` (fed by an `FTSDialogueView`: any story system), `STSTitle`, `STSPauseMenu`, `STSCursor`, `STSNightShade`, `STSToasts`, `STSAbilityPicker`, `TSHUDDraw` (canvas: text, bars, floaters, ground ring, threat arrows) |
@@ -107,6 +107,7 @@ SAssignNew(Box, STSDialogueBox).World(World).View(V);              // call Box->
               "dialogueFade", "titleFade", "nightShade" },  // paths, or material names for the game's resolver
   "text": { "block": "BLOCK", "notEnough": "Not enough {pool}", "pickerHint": ..., "progressLost": ..., ... },   // overrides for on-screen words
   "currencyKey": "currency",                      // the loot-table key for coin ranges
+  "statusTints": { "Frozen": "#bfe2ff" },         // characters tinted while they carry a tag ("Frozen" also stops them)
   "kits": { ... }, "mounts": { ... },             // weapon kits: shapes on bones (ATSCharacter::SetWeaponKits)
   "arrows": { "heightPerDistance": 0.16, "minHeight": 30, "maxHeight": 320 },
   "unitsPerPx": 3.5, "tileSize": 300,            // data "pixels" -> Unreal units (UTSData::Px)
@@ -137,6 +138,8 @@ SAssignNew(Box, STSDialogueBox).World(World).View(V);              // call Box->
   "scaling": { "strength": 0.06 }, "staggerTime": 0.55, "poiseRegenDelay": 2
 },
 "abilities": { "<id>": { "type": "projectile" | "aoe" | ... | <registered>, "<pool>": cost, "cooldown": 1, ... } },
+  // aoe: "applyTag": { "tag": "Frozen", "duration": 3, "everyone": true }, "fx": { "shape": "sphere", "ground": 3, "groundColor": "#cfeaff" }
+  // a guard (block) with "keepOut": 50 is a barrier: anyone inside when it goes up is thrown clear, nobody gets in while it's up
 "items": { ... }, "rarities": { ... }, "affixes": [ ... ], "lootTables": { ... },
 "map": {
   "rows": [ "########", "#..P..g#", ... ],        // one character per tile

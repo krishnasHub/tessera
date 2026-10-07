@@ -35,4 +35,6 @@ private:
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> Mat;
 	UPROPERTY() TObjectPtr<UStaticMeshComponent> Shadow;   // Flat 2D: a drawn blob shadow (cards cast none)
 	float Clock = 0.f, LastHP = -1.f, HurtT = 0.f, HideCheck = 0.f;
+	int32 HeldRow = 0, HeldCol = 0;            // the frame on show (held while frozen)
+	FLinearColor LastTint = FLinearColor::White;
 };

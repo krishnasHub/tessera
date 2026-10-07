@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Components/ActorComponent.h"
 #include "TSAnimNotifies.h"
 #include "TSStats.h"
 #include "TSJson.h"
@@ -13,6 +14,16 @@ class UAnimInstance;
 class UMaterialInstanceDynamic;
 class UTSSpriteComponent;
 struct FTSHit;
+
+/** Runs a character's keepOut barrier after all movement each frame (see ATSCharacter::GuardStyle). */
+UCLASS()
+class TESSERAGAMEPLAY_API UTSKeepOut : public UActorComponent
+{
+	GENERATED_BODY()
+public:
+	UTSKeepOut();
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+};
 
 /** Who fights whom: the player's side, its enemies, and bystanders nobody attacks. */
 UENUM()
@@ -51,7 +62,9 @@ public:
 	virtual bool IsPassive() const { return false; }
 	virtual bool IsLeaving() const { return false; }
 	virtual FString FactionId() const { return FString(); }
-	/** While guarding: the guard's data { arc, reduction, perfectWindow, staminaPerDamage, ... }, else null. */
+	/** While guarding: the guard's data { arc, reduction, perfectWindow, staminaPerDamage, ... }, else null.
+	 *  A guard with "keepOut" (data pixels) is a barrier: no other character can come closer than that. Anyone inside
+	 *  when it goes up is thrown clear; anyone reaching it while it's up is held at its edge. */
 	virtual TSJson::FObj GuardStyle() const { return nullptr; }
 	float GuardTime = 0.f;                 // seconds since the guard went up (perfect-block window)
 	/** Struck by Src, before the damage roll (e.g. a bystander's faction turns hostile). */
@@ -70,7 +83,15 @@ public:
 	// ---- ability / aiming hooks (the hero overrides these) ----
 	virtual int32 Level() const { return FMath::Max(1, FMath::RoundToInt(Stats->Get(TEXT("level")))); }
 	/** Not stunned / mid-dodge: may start an ability. */
-	virtual bool CanAct() const { return !bDead && !Tags.Has(TEXT("Staggered")); }
+	virtual bool CanAct() const { return !bDead && !Tags.Has(TEXT("Staggered")) && !IsFrozen(); }
+	/** Tagged "Frozen": it can't move, act or animate until the tag runs out (the game's AI should idle too). */
+	bool IsFrozen() const { return Tags.Has(TEXT("Frozen")); }
+	/** The tint for the first of its tags listed in <world>.statusTints ({ "Frozen": "#cfe8ff" }), else white. */
+	FLinearColor StatusTint() const;
+	/** A tag's colour from <world>.statusTints; false if it has none. */
+	static bool TintForTag(const UObject* WorldContext, FName Tag, FLinearColor& Out);
+	/** While guarding with a keepOut barrier: throw out / hold back anyone inside it (run after movement). */
+	void HoldOutOpponents();
 	/** An ability's "requires" (e.g. "shield"); false with Why to refuse. */
 	virtual bool MeetsRequirement(const FString& Requirement, FString& Why) const { return true; }
 	virtual FVector AimDirection(const FVector& From) const { return Facing(); }
@@ -157,6 +178,8 @@ protected:
 	TMap<FString, FKitMount> KitMounts;
 
 	bool bDead = false;
+	UPROPERTY() TObjectPtr<class UTSKeepOut> KeepOut;   // added the first time a keepOut barrier goes up
+	float BarrierUpFor = 0.f;                           // seconds the keepOut barrier has been up (0 = down)
 	float FlashTime = 0.f;
 	float DeathTime = 0.f;
 	FVector KnockVelocity = FVector::ZeroVector;
