@@ -43,6 +43,9 @@ public:
 	static float Hour();
 	/** 0 by day, 1 at night (follows the sun). */
 	static float Night();
+	/** Indoors (a cave, a cellar): this many stops darker and a heavier vignette, on top of the time of day; 0 = outdoors. */
+	void SetIndoors(float ExposureStops, float Vignette = 0.3f);
+	float IndoorStops = 0.f, IndoorVignette = 0.3f;
 	/** How strongly the dark swallows everything out of reach (0 by day, up to ~1 in deep night). */
 	static float Darkness();
 	/** How far the hero sees in the dark (uu): nightVision.heroSight plus what the hero carries (SetCarriedLight). */

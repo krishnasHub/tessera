@@ -58,6 +58,13 @@ void ATSSky::Tick(float DeltaSeconds)
 }
 
 float ATSSky::Hour() { return GHour; }
+void ATSSky::SetIndoors(float ExposureStops, float Vignette)
+{
+	IndoorStops = ExposureStops;
+	IndoorVignette = Vignette;
+	UpdateSky();
+}
+
 float ATSSky::Night() { return GNight; }
 float ATSSky::Darkness() { return GDarkStrength * FMath::SmoothStep(0.45f, 1.f, GNight); }
 float ATSSky::HeroSight() { return GHeroSight + GCarriedSight; }
@@ -138,7 +145,9 @@ void ATSSky::UpdateSky()
 		S.bOverride_AutoExposureMinBrightness = true; S.AutoExposureMinBrightness = ExposureMinEV;
 		S.bOverride_AutoExposureMaxBrightness = true; S.AutoExposureMaxBrightness = ExposureMaxEV;
 		S.bOverride_AutoExposureBias = true;
-		S.AutoExposureBias = -0.5f + NightExposure * Night;
+		S.AutoExposureBias = -0.5f + NightExposure * Night + IndoorStops;
+		S.bOverride_VignetteIntensity = true;
+		S.VignetteIntensity = IndoorVignette;
 		S.bOverride_SceneColorTint = true;
 		S.SceneColorTint = FMath::Lerp(FMath::Lerp(FLinearColor(1.02f, 1.f, 0.97f), FLinearColor(1.08f, 0.95f, 0.85f), Golden), FLinearColor(0.62f, 0.8f, 1.3f), Night);
 		S.bOverride_ColorSaturation = true;

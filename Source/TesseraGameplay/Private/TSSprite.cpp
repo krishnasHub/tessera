@@ -21,6 +21,9 @@ UTSSpriteComponent::UTSSpriteComponent()
 	SetUsingAbsoluteRotation(true);
 	SetUsingAbsoluteScale(true);
 	CastShadow = true;
+	// A flat card has paper-thin bounds; the occlusion culler can then decide a character standing on uneven ground
+	// is buried in it and stop drawing them (seen in the ruins). Roomier bounds keep the test honest.
+	BoundsScale = 2.f;
 }
 
 void UTSSpriteComponent::Setup(const FString& Sheet)
@@ -101,13 +104,15 @@ void UTSSpriteComponent::TickComponent(float Dt, ELevelTick TickType, FActorComp
 	// Placement: the card's bottom edge at the feet (the art leaves ~2 px under the boots).
 	const float Units = TSLook::SpriteUnits() * C->GetActorScale3D().Z;
 	const float Size = TSSpriteSheet::Frame * Units;
-	const FRotator R = TSLook::CardRotation();
-	const FVector CardUp = -FRotationMatrix(R).GetUnitAxis(EAxis::Y);
+	// Standing upright (stretched to look the same): a tall character never leans into a wall behind them.
+	const FRotator R = TSLook::StandingRotation();
+	const FVector CardUp = TSLook::StandingUp();
+	const float Stretch = TSLook::StandingStretch();
 	FVector Feet = C->GetActorLocation() - FVector(0, 0, C->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
-	FVector Center = Feet + CardUp * (Size * 0.5f - 2.5f * Units);
+	FVector Center = Feet + CardUp * (Size * 0.5f - 2.5f * Units) * Stretch;
 	if (TSLook::Mode() == TSLook::EMode::Flat2D) Center.Z = TSLook::FlatSortZ(Feet.Y);
 	SetWorldLocationAndRotation(Center, R);
-	SetWorldScale3D(FVector(Size / 100.f, Size / 100.f, 1.f));
+	SetWorldScale3D(FVector(Size / 100.f, Size * Stretch / 100.f, 1.f));
 	if (Shadow)
 	{
 		Shadow->SetVisibility(!C->IsDead());

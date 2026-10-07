@@ -109,6 +109,8 @@ public:
 	virtual void OnParley(ATSCharacter* Target, const FString& Node) {}
 	/** Can words reach it (a daze, a parley)? And its mid-fight dialogue node. */
 	virtual bool IsReasonable() const { return false; }
+	/** Why words don't reach it (shown when IsReasonable is false); default <world>.text.notReasonable. */
+	virtual FString NotReasonableWhy() const { return FString(); }
 	virtual FString ParleyNode() const { return FString(); }
 	/** Smoke, a feint...: forget the hero if hunting them. */
 	virtual void LoseTrack() {}

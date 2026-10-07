@@ -6,11 +6,12 @@
 #include "TSHeroControl.generated.h"
 
 class ATSCharacter;
+class ATSInteractable;
 class APlayerController;
 
 /** What a top-down click asked for. */
 UENUM()
-enum class ETSClickGoal : uint8 { None, Move, Attack, Talk };
+enum class ETSClickGoal : uint8 { None, Move, Attack, Talk, Use };
 
 /**
  * Diablo-style mouse control for the hero (a component on an ATSCharacter the player possesses):
@@ -18,7 +19,8 @@ enum class ETSClickGoal : uint8 { None, Move, Attack, Talk };
  *   cursor        the ray under the mouse, the ground there, the character under it (generous: anywhere on the
  *                 body or its sprite card), aim assist toward it
  *   click         LMB on the ground walks there along the navmesh (hold: follow the cursor); on a foe walks into
- *                 range and attacks (hold: keep attacking); on someone to talk to walks up and talks.
+ *                 range and attacks (hold: keep attacking); on someone to talk to walks up and talks; on a thing
+ *                 (ATSInteractable) walks up and uses it.
  *                 Modifier + LMB (Shift) attacks in place
  *   talk mode     the next click on a character talks instead of attacking (cursor shows it)
  *   picker        Modifier + wheel opens the ability picker: slow motion (<world>.camera.abilityPicker.timeScale),
@@ -47,6 +49,10 @@ public:
 	TFunction<FString(const ATSCharacter* Who)> TalkBlocker;
 	/** Open the conversation with Who (they're in range and willing). */
 	TFunction<void(ATSCharacter* Who)> Talk;
+	/** Why the hero can't use It right now ("" = they can). */
+	TFunction<FString(const ATSInteractable* It)> UseBlocker;
+	/** Use It (the hero is beside it). */
+	TFunction<void(ATSInteractable* It)> Use;
 	/** How close the hero walks before talking (from the other's edge). */
 	float TalkRange = 200.f;
 	/** Held with LMB: attack in place; with the wheel: the ability picker. */
@@ -72,6 +78,8 @@ public:
 	bool CursorAtHeight(float Z, FVector& Out) const;
 	/** The character under the cursor (a foe, or someone with dialogue); bHostile: a click would attack them. */
 	ATSCharacter* UnderCursor(bool& bHostile) const;
+	/** The usable thing (ATSInteractable) under the cursor. */
+	ATSInteractable* ObjectUnderCursor() const;
 	/** Aim assist: the opponent nearest the cursor ray (within Slack of its body), in sight, within MaxDistance. */
 	const ATSCharacter* CursorAssist(float MaxDistance = 3000.f, float Slack = 70.f) const;
 
@@ -101,6 +109,10 @@ public:
 	void SetTalkMode(bool bOn) { bTalkMode = bOn; }
 	/** Walk up to C and talk, or float why not. */
 	void TryTalk(ATSCharacter* C);
+	/** Walk up to It and use it, or float why not. */
+	void TryUse(ATSInteractable* It);
+	/** Who / what a click is going for (an interactable). */
+	ATSInteractable* GoalObject() const { return GoalObj.Get(); }
 
 	// ---- ability picker ----
 	/** The highlighted slot, -1 when closed. */
@@ -128,6 +140,7 @@ private:
 	ETSClickGoal Goal = ETSClickGoal::None;
 	FVector GoalPoint = FVector::ZeroVector;
 	TWeakObjectPtr<ATSCharacter> GoalActor;
+	TWeakObjectPtr<ATSInteractable> GoalObj;
 	bool bMoveHeld = false;          // LMB held after a ground click: keep walking toward the cursor
 	TArray<FVector> Path;
 	int32 PathIndex = 0;

@@ -43,6 +43,11 @@ public:
 protected:
 	void BeginBuild();
 	void FinishBuild(const FBox& PlayableArea);
+	/** More walkable space for the navmesh (separate areas off the main map); call before FinishBuild. */
+	void AddNavArea(const FBox& Area) { ExtraNavAreas.Add(Area); }
+	TArray<FBox> ExtraNavAreas;
+	/** Boxes where the ground is flat at a given height (areas off the height field): X/Y extent, Z = height. */
+	TArray<FBox> FlatGround;
 
 	/** The ground mesh (root). Re-registered with navigation once built. */
 	UPROPERTY() TObjectPtr<UProceduralMeshComponent> Terrain;

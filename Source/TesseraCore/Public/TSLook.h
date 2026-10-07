@@ -37,6 +37,14 @@ namespace TSLook
 	/** Rotation for a sprite card: the engine Plane turned to face the camera (HD-2D) or lying flat with
 	 *  the picture's top to the north (Flat 2D). Card height runs along the returned rotation's -Y axis. */
 	TESSERACORE_API FRotator CardRotation();
+	/** A character's card in HD-2D: standing upright (so it never leans into a wall behind it), facing the camera's
+	 *  way, stretched by StandingStretch() so it looks the same on screen as a card facing the camera. Flat 2D: as
+	 *  CardRotation. Card height runs along -Y, as for CardRotation. */
+	TESSERACORE_API FRotator StandingRotation();
+	/** Height multiplier for a standing card (1 / cos of the camera's pitch; 1 in Flat 2D). */
+	TESSERACORE_API float StandingStretch();
+	/** Up the standing card (world up in HD-2D). */
+	TESSERACORE_API FVector StandingUp();
 	/** Flat 2D: card height above the ground for a world Y (south draws over north). */
 	TESSERACORE_API float FlatSortZ(float WorldY);
 

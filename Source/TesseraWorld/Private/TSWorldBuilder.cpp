@@ -37,6 +37,7 @@ void ATSWorldBuilder::FinishBuild(const FBox& PlayableArea)
 {
 	Sky = ATSSky::Spawn(GetWorld());
 	BuildNavigation(PlayableArea);
+	for (const FBox& Extra : ExtraNavAreas) BuildNavigation(Extra);
 }
 
 void ATSWorldBuilder::AddFlicker(UPointLightComponent* Light, float Base)
@@ -108,6 +109,7 @@ void ATSWorldBuilder::AddBlocker(const FVector& Center, const FVector& HalfExten
 
 float ATSWorldBuilder::GroundZ(float X, float Y) const
 {
+	for (const FBox& B : FlatGround) if (X >= B.Min.X && X <= B.Max.X && Y >= B.Min.Y && Y <= B.Max.Y) return float(B.Max.Z);
 	if (Heights.IsEmpty()) return 0.f;
 	const float FI = (X - OriginX) / Step, FJ = (Y - OriginY) / Step;
 	const int32 I = FMath::Clamp(FMath::FloorToInt(FI), 0, GridW - 2), J = FMath::Clamp(FMath::FloorToInt(FJ), 0, GridH - 2);

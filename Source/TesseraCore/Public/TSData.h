@@ -19,6 +19,18 @@ struct FTSSpawn
 	FString Id;     // e.g. "guard"
 	int32 X = 0;
 	int32 Y = 0;
+	FString Area;   // "" = the main map; else the area it's in (X, Y are world tiles either way)
+};
+
+/** A separate small map (a cave, a cellar...) built off to the side of the main one, reached through doors. */
+struct FTSArea
+{
+	FString Id, Name;
+	TArray<FString> Rows;   // spawn markers already replaced by floor
+	int32 W = 0, H = 0;
+	FIntPoint Origin = FIntPoint::ZeroValue;   // its top-left, in world tiles
+	TSJson::FObj Def;
+	bool Contains(int32 TX, int32 TY) const { return TX >= Origin.X && TY >= Origin.Y && TX < Origin.X + W && TY < Origin.Y + H; }
 };
 
 /**
@@ -69,8 +81,14 @@ public:
 	TArray<FString> Rows;          // spawn markers already replaced by floor
 	int32 MapW = 0, MapH = 0;
 	TArray<FTSSpawn> Spawns;
+	/** map.areas { id: { "name", "at": [tileX, tileY] (top-left, world tiles; keep it clear of the main map), "rows": [...] } }:
+	 *  the same legend and spawn markers as the main map. */
+	TArray<FTSArea> Areas;
+	/** The area a world position is in (null: the main map). */
+	const FTSArea* AreaAt(const FVector& P) const;
+	const FTSArea* FindArea(const FString& Id) const;
 
-	/** The tile character at X, Y (Outside beyond the map). */
+	/** The tile character at world tile X, Y (the main map or an area; Outside beyond them). */
 	TCHAR TileAt(int32 X, int32 Y, TCHAR Outside = TEXT(' ')) const;
 	/** World position of a tile's centre on the ground plane. */
 	FVector TileCenter(int32 X, int32 Y) const { return FVector((X + 0.5f) * TileSize, (Y + 0.5f) * TileSize, 0.f); }

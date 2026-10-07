@@ -48,6 +48,24 @@ FRotator TSLook::CameraRotation()
 	return FRotator(float(TSJson::Num(GTopDown, TEXT("pitch"), -58)), Yaw, 0.f);
 }
 
+FRotator TSLook::StandingRotation()
+{
+	if (GMode == EMode::Flat2D) return CardRotation();
+	const FVector Right = FRotationMatrix(CameraRotation()).GetUnitAxis(EAxis::Y);
+	return FRotationMatrix::MakeFromXY(Right, -FVector::UpVector).Rotator();
+}
+
+float TSLook::StandingStretch()
+{
+	if (GMode == EMode::Flat2D) return 1.f;
+	return FMath::Clamp(1.f / FMath::Cos(FMath::DegreesToRadians(FMath::Abs(CameraRotation().Pitch))), 1.f, 1.8f);
+}
+
+FVector TSLook::StandingUp()
+{
+	return -FRotationMatrix(StandingRotation()).GetUnitAxis(EAxis::Y);
+}
+
 FRotator TSLook::CardRotation()
 {
 	// The engine Plane lies in its local XY (normal +Z, U along +X, V along +Y). Lay U along screen-right,

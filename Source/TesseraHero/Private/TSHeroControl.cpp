@@ -1,4 +1,5 @@
 #include "TSHeroControl.h"
+#include "TSInteractable.h"
 #include "TSCameraRig.h"
 #include "TSCharacter.h"
 #include "TSCombat.h"
@@ -88,7 +89,7 @@ ATSCharacter* UTSHeroControl::UnderCursor(bool& bHostile) const
 		if (TSLook::IsSprite())
 		{
 			// A sprite is drawn on a card standing at the feet: test points up the card, where its body is drawn.
-			const FVector Up = -FRotationMatrix(TSLook::CardRotation()).GetUnitAxis(EAxis::Y);
+			const FVector Up = TSLook::StandingUp() * TSLook::StandingStretch();
 			const FVector Feet = C->GetActorLocation() - FVector(0, 0, C->GetSimpleCollisionHalfHeight());
 			for (const float H : { 30.f, 90.f, 150.f })
 				Miss = FMath::Min(Miss, FMath::PointDistToLine(Feet + Up * H * C->GetActorScale3D().Z, R, O));
@@ -98,6 +99,21 @@ ATSCharacter* UTSHeroControl::UnderCursor(bool& bHostile) const
 		Best = C;
 		BestMiss = Miss;
 		bHostile = bFoe;
+	}
+	return Best;
+}
+
+ATSInteractable* UTSHeroControl::ObjectUnderCursor() const
+{
+	FVector O, R;
+	if (!CursorRay(O, R)) return nullptr;
+	ATSInteractable* Best = nullptr;
+	float BestMiss = 30.f;
+	for (TActorIterator<ATSInteractable> It(GetWorld()); It; ++It)
+	{
+		if (!It->CanUse()) continue;
+		const float Miss = It->CursorMiss(O, R);
+		if (Miss < BestMiss) { BestMiss = Miss; Best = *It; }
 	}
 	return Best;
 }
@@ -136,6 +152,7 @@ bool UTSHeroControl::HandlePrimaryPress()
 	bool bHostile = false;
 	ATSCharacter* On = UnderCursor(bHostile);
 	if (On && (bTalkMode || !bHostile)) { TryTalk(On); return true; }
+	if (!On) if (ATSInteractable* It = ObjectUnderCursor()) { SetTalkMode(false); TryUse(It); return true; }
 	SetTalkMode(false);
 	FVector Ground = GetOwner()->GetActorLocation();
 	CursorGround(Ground);
@@ -176,6 +193,7 @@ void UTSHeroControl::ClearGoal()
 {
 	Goal = ETSClickGoal::None;
 	GoalActor = nullptr;
+	GoalObj = nullptr;
 	Path.Reset();
 	bMoveHeld = false;
 }
@@ -210,7 +228,19 @@ FVector UTSHeroControl::Update(float Dt)
 	if (Goal == ETSClickGoal::None) return FVector::ZeroVector;
 	const FVector At = GetOwner()->GetActorLocation();
 	ATSCharacter* T = GoalActor.Get();
-	if (Goal != ETSClickGoal::Move && (!T || T->IsDead() || T->IsLeaving())) { ClearGoal(); bAttackHeld = false; return FVector::ZeroVector; }
+	if (Goal == ETSClickGoal::Use)
+	{
+		ATSInteractable* It = GoalObj.Get();
+		if (!It || !It->CanUse()) { ClearGoal(); return FVector::ZeroVector; }
+		GoalPoint = It->GetActorLocation();
+		if (FVector::Dist2D(GoalPoint, At) - It->Radius <= TalkRange)
+		{
+			ClearGoal();
+			if ((!UseBlocker || UseBlocker(It).IsEmpty()) && Use) Use(It);
+			return FVector::ZeroVector;
+		}
+	}
+	else if (Goal != ETSClickGoal::Move && (!T || T->IsDead() || T->IsLeaving())) { ClearGoal(); bAttackHeld = false; return FVector::ZeroVector; }
 
 	if (Goal == ETSClickGoal::Attack)
 	{
@@ -261,6 +291,19 @@ void UTSHeroControl::TryTalk(ATSCharacter* C)
 		return;
 	}
 	if (C) Click(C, false, C->GetActorLocation());
+}
+
+void UTSHeroControl::TryUse(ATSInteractable* It)
+{
+	if (!It) return;
+	const FString Why = UseBlocker ? UseBlocker(It) : FString();
+	if (!Why.IsEmpty()) { UTSFeedback::Get(this)->Float(It->Top(), Why, FLinearColor(0.85f, 0.85f, 0.8f), 0.9f); return; }
+	const ATSCharacter* Me = Hero();
+	if (!Me || Me->IsDead()) return;
+	ClearGoal();
+	Goal = ETSClickGoal::Use;
+	GoalObj = It;
+	GoalPoint = It->GetActorLocation();
 }
 
 // ---------------------------------------------------------------------------------------------

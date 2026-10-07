@@ -375,7 +375,12 @@ void UTSAbilityComponent::RegisterBuiltIns()
 		UTSFeedback* Fb = UTSFeedback::Get(P);
 		ATSCharacter* Tg = X.TargetNearAim(X.Dist(TEXT("range"), 260));
 		if (!Tg) { X.Fail(TSText::Get(P, TEXT("noTarget"), TEXT("No target"))); return false; }
-		if (!Tg->IsReasonable()) { Fb->Float(Tg->Head(), TSText::Get(P, TEXT("notReasonable"), TEXT("It doesn't understand words")), Muted, 0.8f); return false; }
+		if (!Tg->IsReasonable())
+		{
+			const FString Why = Tg->NotReasonableWhy();
+			Fb->Float(Tg->Head(), Why.IsEmpty() ? TSText::Get(P, TEXT("notReasonable"), TEXT("It doesn't understand words")) : Why, Muted, 0.8f);
+			return false;
+		}
 		if (Tg->IsPassive()) { Fb->Float(Tg->Head(), TSText::Get(P, TEXT("notFighting"), TEXT("They're not fighting you")), Muted, 0.8f); return false; }
 		Tg->Stagger(float(X.Num(TEXT("daze"), 3)));
 		Fb->Float(Tg->Head() + FVector(0, 0, 40), TSText::Get(P, TEXT("dazed"), TEXT("DAZED")), X.Color, 1.1f);

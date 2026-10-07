@@ -166,7 +166,7 @@ function Run-Batch($jobs, [int] $parallel, [double] $timeout) {
 }
 
 # How many game instances this PC runs at once: ~3 CPU cores, 2.5 GB of RAM (keeping 4 GB for Windows) and
-# 2 GB of video memory each; whichever runs out first sets the limit.
+# 2 GB of video memory each; whichever runs out first sets the limit (and never more than tessera.json maxParallel).
 function Auto-Parallel([int] $count) {
     $cores = (Get-CimInstance Win32_Processor | Measure-Object NumberOfCores -Sum).Sum
     $freeGB = [math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB, 1)
@@ -180,6 +180,7 @@ function Auto-Parallel([int] $count) {
     $byRam = [math]::Floor(($freeGB - 4) / 2.5)
     $byGpu = [math]::Floor($vramGB / 2)
     $n = [math]::Max(1, [math]::Min([math]::Min($byCpu, $byRam), [math]::Min($byGpu, $count)))
+    if ($Cfg.maxParallel -gt 0) { $n = [math]::Min($n, [int]$Cfg.maxParallel) }   # the game's own cap (tessera.json maxParallel)
     Note ("This PC: {0} cores, {1} GB RAM free, {2:n0} GB video memory -> CPU allows {3}, RAM {4}, GPU {5}: running {6} at a time" -f $cores, $freeGB, $vramGB, $byCpu, $byRam, $byGpu, $n)
     return $n
 }

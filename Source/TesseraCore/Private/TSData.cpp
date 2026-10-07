@@ -50,35 +50,73 @@ void UTSData::ParseMap()
 	const FString Solid = TSJson::Str(Map, TEXT("solid"));
 	const TCHAR FloorChar = Floor.IsEmpty() ? TEXT('.') : Floor[0];
 
-	for (const TSharedPtr<FJsonValue>& V : TSJson::Arr(Map, TEXT("rows"))) Rows.Add(V->AsString());
-	MapH = Rows.Num();
-	for (const FString& R : Rows) MapW = FMath::Max(MapW, R.Len());
-
-	for (int32 Y = 0; Y < MapH; ++Y)
+	// One grid of rows: pad them, pull out the spawn markers (world tiles: Origin + local).
+	auto Parse = [&](TArray<FString>& Grid, int32& W, int32& H, const FIntPoint& Origin, const FString& Area)
 	{
-		FString& Row = Rows[Y];
-		while (Row.Len() < MapW) Row.AppendChar(FloorChar);
-		for (int32 X = 0; X < MapW; ++X)
+		H = Grid.Num();
+		for (const FString& R : Grid) W = FMath::Max(W, R.Len());
+		for (int32 Y = 0; Y < H; ++Y)
 		{
-			FString Def;
-			if (!SpawnDefs.IsValid() || !SpawnDefs->TryGetStringField(Row.Mid(X, 1), Def)) continue;
+			FString& Row = Grid[Y];
+			while (Row.Len() < W) Row.AppendChar(FloorChar);
+			for (int32 X = 0; X < W; ++X)
+			{
+				FString Def;
+				if (!SpawnDefs.IsValid() || !SpawnDefs->TryGetStringField(Row.Mid(X, 1), Def)) continue;
 
-			FTSSpawn S;
-			S.X = X; S.Y = Y;
-			if (!Def.Split(TEXT(":"), &S.Kind, &S.Id)) S.Kind = Def;
-			Spawns.Add(S);
+				FTSSpawn S;
+				S.X = Origin.X + X; S.Y = Origin.Y + Y;
+				S.Area = Area;
+				if (!Def.Split(TEXT(":"), &S.Kind, &S.Id)) S.Kind = Def;
+				Spawns.Add(S);
 
-			// The marker tile becomes whatever floor is to its left (unless that's solid).
-			const TCHAR Left = X > 0 ? Row[X - 1] : FloorChar;
-			int32 Ignored;
-			Row[X] = Solid.FindChar(Left, Ignored) ? FloorChar : Left;
+				// The marker tile becomes whatever floor is to its left (unless that's solid).
+				const TCHAR Left = X > 0 ? Row[X - 1] : FloorChar;
+				int32 Ignored;
+				Row[X] = Solid.FindChar(Left, Ignored) ? FloorChar : Left;
+			}
 		}
-	}
+	};
+	for (const TSharedPtr<FJsonValue>& V : TSJson::Arr(Map, TEXT("rows"))) Rows.Add(V->AsString());
+	Parse(Rows, MapW, MapH, FIntPoint::ZeroValue, FString());
+
+	if (const TSJson::FObj AreaDefs = TSJson::Obj(Map, TEXT("areas")))
+		for (const auto& KV : AreaDefs->Values)
+		{
+			const TSJson::FObj A = TSJson::Obj(AreaDefs, FString(*KV.Key));   // (skips "_doc" strings)
+			if (!A) continue;
+			FTSArea Area;
+			Area.Id = FString(*KV.Key);
+			Area.Def = A;
+			Area.Name = TSJson::Str(A, TEXT("name"), Area.Id);
+			const TArray<TSharedPtr<FJsonValue>> At = TSJson::Arr(A, TEXT("at"));
+			if (At.Num() == 2) Area.Origin = FIntPoint(int32(At[0]->AsNumber()), int32(At[1]->AsNumber()));
+			for (const TSharedPtr<FJsonValue>& V : TSJson::Arr(A, TEXT("rows"))) Area.Rows.Add(V->AsString());
+			Parse(Area.Rows, Area.W, Area.H, Area.Origin, Area.Id);
+			Areas.Add(MoveTemp(Area));
+		}
+}
+
+const FTSArea* UTSData::AreaAt(const FVector& P) const
+{
+	const FIntPoint T = TileOf(P);
+	for (const FTSArea& A : Areas) if (A.Contains(T.X, T.Y)) return &A;
+	return nullptr;
+}
+
+const FTSArea* UTSData::FindArea(const FString& Id) const
+{
+	for (const FTSArea& A : Areas) if (A.Id == Id) return &A;
+	return nullptr;
 }
 
 TCHAR UTSData::TileAt(int32 X, int32 Y, TCHAR Outside) const
 {
-	if (X < 0 || Y < 0 || Y >= MapH || X >= MapW) return Outside;
+	if (X < 0 || Y < 0 || Y >= MapH || X >= MapW)
+	{
+		for (const FTSArea& A : Areas) if (A.Contains(X, Y)) return A.Rows[Y - A.Origin.Y][X - A.Origin.X];
+		return Outside;
+	}
 	return Rows[Y][X];
 }
 
