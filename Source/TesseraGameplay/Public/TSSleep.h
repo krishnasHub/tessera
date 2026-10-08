@@ -92,6 +92,7 @@ private:
 	void StepOut();
 
 	bool bTurningIn = false, bIn = false, bSettled = false;
+	float UpIn = -1.f;   // morning: seconds until it gets up (sleepers stagger out, tuning.sleep.staggerUp)
 	FVector PathGoal = FVector(BIG_NUMBER);
 	float AwakeFor = 0.f, HeldFor = 0.f, ZzzIn = 0.f, RepathIn = 0.f;
 	float Closest = BIG_NUMBER, NoProgress = 0.f;   // walking to bed: the nearest it got, and for how long it hasn't got nearer

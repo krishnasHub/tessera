@@ -103,8 +103,11 @@ void UTSSleep::StepOut()
 {
 	ATSCharacter* C = Char();
 	bIn = false;
-	C->SetActorLocation(Entry + FVector(0, 0, C->GetSimpleCollisionHalfHeight() + 10.f), false, nullptr, ETeleportType::TeleportPhysics);
+	// Out at the entry, a little to one side (TeleportTo finds a free spot: never inside someone already there).
+	const float A = FMath::FRandRange(0.f, UE_TWO_PI), R = FMath::FRandRange(40.f, 140.f);
 	C->SetActorEnableCollision(true);
+	if (!C->TeleportTo(Entry + FVector(FMath::Cos(A) * R, FMath::Sin(A) * R, C->GetSimpleCollisionHalfHeight() + 10.f), C->GetActorRotation(), false, false))
+		C->SetActorLocation(Entry + FVector(0, 0, C->GetSimpleCollisionHalfHeight() + 10.f), false, nullptr, ETeleportType::TeleportPhysics);
 	C->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 }
 
@@ -129,7 +132,12 @@ void UTSSleep::TickComponent(float Dt, ELevelTick TickType, FActorComponentTickF
 	{
 		if (!bBedtime)
 		{
-			// Morning (or nightfall, for the day sleepers): up, and out of the door if there is one.
+			// Morning (or nightfall, for the day sleepers): up, and out of the door if there is one. Not all at once:
+			// each in its own moment (a crowd stepping out on one spot would jam in the doorway).
+			if (UpIn < 0.f) UpIn = FMath::FRandRange(0.f, SleepTuning(this, TEXT("staggerUp"), 6));
+			UpIn -= Dt;
+			if (UpIn > 0.f) return;
+			UpIn = -1.f;
 			C->Tags.Remove(AsleepTag);
 			if (bIn) StepOut();
 			OnWoke.Broadcast(C);
