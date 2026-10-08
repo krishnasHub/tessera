@@ -14,6 +14,7 @@ bool UTSChannel::Start(const FString& InLabel, float Duration, TFunction<bool()>
 	Length = Duration;
 	Elapsed = 0.f;
 	FailPoint = -1.f;
+	Followed = nullptr;
 	StartAt = GetOwner()->GetActorLocation();
 	Keep = MoveTemp(InKeep);
 	Done = MoveTemp(InDone);
@@ -41,7 +42,10 @@ void UTSChannel::TickComponent(float Dt, ELevelTick TickType, FActorComponentTic
 	Super::TickComponent(Dt, TickType, ThisTickFunction);
 	if (SnapClock >= 0.f) SnapClock += Dt;
 	if (!bActive) return;
-	if (FVector::Dist2D(GetOwner()->GetActorLocation(), StartAt) > MoveTolerance || (Keep && !Keep())) { Finish(false); return; }
+	// Stay put, or (following someone) stay with them.
+	const bool bAstray = Followed.IsValid() ? FVector::Dist2D(GetOwner()->GetActorLocation(), Followed->GetActorLocation()) > FollowSlack
+		: FVector::Dist2D(GetOwner()->GetActorLocation(), StartAt) > MoveTolerance;
+	if (bAstray || (Keep && !Keep())) { Finish(false); return; }
 	Elapsed += Dt;
 	if (FailPoint >= 0.f && Progress() >= FailPoint)
 	{
