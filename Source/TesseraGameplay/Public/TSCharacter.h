@@ -58,6 +58,9 @@ public:
 	FTSTags Tags;
 
 	// ---- damage-pipeline hooks ----
+	/** Can By pick it out (click, talk, attack)? Default: yes, unless it's asleep behind a door (UTSSleep), then only from
+	 *  inside the same open building (ATSWorldBuilder cutaways). */
+	virtual bool CanBeTargeted(const ATSCharacter* By) const;
 	/** A non-hostile member of a faction: won't fight, can be talked to. */
 	virtual bool IsPassive() const { return false; }
 	virtual bool IsLeaving() const { return false; }

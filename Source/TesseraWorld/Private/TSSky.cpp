@@ -21,6 +21,7 @@ namespace
 {
 	// Time of day and night vision (one world at a time).
 	float GHour = 14.f, GNight = 0.f;
+	float GNightEyes = 1.f;   // the night shade's strength for this hero (SetNightEyes)
 	float GHeroSight = 1000.f, GDarkStrength = 0.97f, GLightReach = 1.f;
 	float GCarriedSight = 0.f;
 	TArray<FVector> GNightLights;   // (x, y, radius)
@@ -58,6 +59,7 @@ void ATSSky::Tick(float DeltaSeconds)
 }
 
 float ATSSky::Hour() { return GHour; }
+void ATSSky::SetHour(float InHour) { GHour = FMath::Fmod(FMath::Max(InHour, 0.f), 24.f); }
 void ATSSky::SetIndoors(float ExposureStops, float Vignette)
 {
 	IndoorStops = ExposureStops;
@@ -69,6 +71,8 @@ float ATSSky::Night() { return GNight; }
 float ATSSky::Darkness() { return GDarkStrength * FMath::SmoothStep(0.45f, 1.f, GNight); }
 float ATSSky::HeroSight() { return GHeroSight + GCarriedSight; }
 void ATSSky::SetCarriedLight(float ExtraSight) { GCarriedSight = FMath::Max(0.f, ExtraSight); }
+void ATSSky::SetNightEyes(float ShadeMul) { GNightEyes = FMath::Clamp(ShadeMul, 0.f, 1.f); }
+float ATSSky::ShadeStrength() { return Darkness() * GNightEyes; }
 const TArray<FVector>& ATSSky::NightLights() { return GNightLights; }
 void ATSSky::AddNightLight(float X, float Y, float Radius) { GNightLights.Add(FVector(X, Y, Radius * GLightReach)); }
 

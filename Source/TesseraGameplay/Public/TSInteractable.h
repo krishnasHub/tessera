@@ -18,8 +18,11 @@ class UStaticMeshComponent;
  *     "flat": false (lie on the ground), "name": "An unmarked grave", "color": "#c8c0a8",
  *     "dialogue": "grave_root", "talkKey": "grave" (defaults to the id), "radius": 60, "usable": true,
  *     "door": "cave_exit" (a two-way door: using it takes you to that interactable), "exit": [0, 1] (where you come
- *     out when arriving through this one, in tiles from it; default one tile south)
+ *     out when arriving through this one, in tiles from it; default one tile south),
+ *     "use": "lock" (the game's own action when it's used: a locked door, a sealed gate...)
  * }
+ * No "sheet": nothing is drawn (a spot on something the world builder made, like a house door); it is still named
+ * on hover and usable.
  * Visible / usable can be switched by the game (story flags...): SetShown.
  */
 UCLASS()
@@ -43,6 +46,8 @@ public:
 	/** A door: the interactable it leads to ("" = not a door). */
 	FString DoorTo;
 	FVector2D ExitTiles = FVector2D(0, 1);
+	/** The game's action when it's used ("" = talk or a door). */
+	FString UseAction;
 
 	/** The other side of this door (null if not a door, or it's missing). */
 	ATSInteractable* DoorTarget() const;
@@ -52,7 +57,7 @@ public:
 	/** Show or hide it (hidden: not drawn, not usable). */
 	void SetShown(bool bShow);
 	bool IsShown() const { return bShown; }
-	bool CanUse() const { return bShown && bUsable && (!DialogueRoot.IsEmpty() || !DoorTo.IsEmpty()); }
+	bool CanUse() const { return bShown && bUsable && (!DialogueRoot.IsEmpty() || !DoorTo.IsEmpty() || !UseAction.IsEmpty()); }
 	/** Where a name or a float sits (the top of the card). */
 	FVector Top() const;
 	/** How far the cursor ray passes from it (minus its radius): <= 0 is on it. */

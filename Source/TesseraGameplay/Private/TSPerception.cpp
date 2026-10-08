@@ -2,6 +2,7 @@
 #include "TSCharacter.h"
 #include "TSCombat.h"
 #include "TSData.h"
+#include "TSSleep.h"
 
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -36,8 +37,18 @@ namespace TSPerception
 		if (!Viewer || !Target || Target->IsDead() || IsHidden(Target)) return false;
 		const float Dist = FVector::Dist2D(Target->GetActorLocation(), Viewer->GetActorLocation());
 		if (Dist >= S.Range) return false;
+		// Sneaking (tag "Sneaking": crouched, slow): heard only that much closer (tuning.sneak.hearMul).
+		FTSSenses Heard = S;
+		if (Target->Tags.Has(TEXT("Sneaking")))
+			Heard.Hear *= float(TSJson::Num(TSJson::Obj(UTSData::Get(Viewer).Section(TEXT("tuning")), TEXT("sneak")), TEXT("hearMul"), 0.25));
 		const FVector To = (Target->GetActorLocation() - Viewer->GetActorLocation()).GetSafeNormal2D();
-		const bool bInView = Dist < S.Hear || FMath::RadiansToDegrees(FMath::Acos(FVector::DotProduct(Viewer->Facing(), To))) <= S.Cone * 0.5f;
+		// Asleep: eyes shut, and only a noise right beside it gets through (tuning.sleep.hearMul).
+		if (UTSSleep::IsAsleep(Viewer))
+		{
+			const float HearMul = float(TSJson::Num(TSJson::Obj(UTSData::Get(Viewer).Section(TEXT("tuning")), TEXT("sleep")), TEXT("hearMul"), 0.35));
+			return Dist < Heard.Hear * HearMul && HasLineOfSight(Viewer, Target);
+		}
+		const bool bInView = Dist < Heard.Hear || FMath::RadiansToDegrees(FMath::Acos(FVector::DotProduct(Viewer->Facing(), To))) <= S.Cone * 0.5f;
 		return bInView && HasLineOfSight(Viewer, Target);
 	}
 

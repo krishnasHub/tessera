@@ -18,6 +18,9 @@ namespace TSSpriteSheet { constexpr int32 Cols = 4, Rows = 13, Frame = 32; }
  * direction row and frame, and places the card at the owner's feet facing the camera (or lying flat,
  * y-sorted, in Flat 2D). The owner's 3D body stays hidden but keeps animating, so montage-driven hit
  * timing works exactly as before.
+ *
+ * Crouched (tag "Sneaking"): if a sheet SPR_<Sheet>_sneak exists it's drawn instead (a crouching pose); otherwise the
+ * card is just drawn a little shorter.
  */
 UCLASS()
 class TESSERAGAMEPLAY_API UTSSpriteComponent : public UStaticMeshComponent
@@ -33,6 +36,8 @@ public:
 
 private:
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> Mat;
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> StandMat;   // the sheets (Mat is the one on show): standing...
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> SneakMat;   // ...and crouched (SPR_<Sheet>_sneak, if there is one)
 	UPROPERTY() TObjectPtr<UStaticMeshComponent> Shadow;   // Flat 2D: a drawn blob shadow (cards cast none)
 	float Clock = 0.f, LastHP = -1.f, HurtT = 0.f, HideCheck = 0.f;
 	int32 HeldRow = 0, HeldCol = 0;            // the frame on show (held while frozen)

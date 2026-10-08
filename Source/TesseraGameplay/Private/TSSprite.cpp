@@ -1,4 +1,5 @@
 #include "TSSprite.h"
+#include "TSSleep.h"
 #include "TSCharacter.h"
 #include "TSLook.h"
 #include "TSAssets.h"
@@ -31,8 +32,10 @@ void UTSSpriteComponent::Setup(const FString& Sheet)
 	if (Sheet == SheetName && Mat) return;
 	SheetName = Sheet;
 	SetStaticMesh(TSAssets::Shape(TEXT("Plane")));
-	Mat = TSLook::SpriteMaterial(this, TEXT("SPR_") + Sheet, TSSpriteSheet::Cols, TSSpriteSheet::Rows);
+	Mat = StandMat = TSLook::SpriteMaterial(this, TEXT("SPR_") + Sheet, TSSpriteSheet::Cols, TSSpriteSheet::Rows);
+	SneakMat = TSLook::SpriteMaterial(this, TEXT("SPR_") + Sheet + TEXT("_sneak"), TSSpriteSheet::Cols, TSSpriteSheet::Rows);   // optional
 	if (Mat) SetMaterial(0, Mat);
+	LastTint = FLinearColor(-1, -1, -1);   // set the tint on the next tick
 	HideCheck = 0.f;
 	if (TSLook::Mode() == TSLook::EMode::Flat2D && !Shadow)
 	{
@@ -56,6 +59,14 @@ void UTSSpriteComponent::TickComponent(float Dt, ELevelTick TickType, FActorComp
 	ATSCharacter* C = Cast<ATSCharacter>(GetOwner());
 	if (!C || !Mat) return;
 	const bool bFrozen = C->IsFrozen();
+	const bool bAsleep = UTSSleep::IsAsleep(C);
+	// Crouched: the crouching sheet, if there is one.
+	if (UMaterialInstanceDynamic* Want = C->Tags.Has(TEXT("Sneaking")) && SneakMat ? SneakMat.Get() : StandMat.Get(); Want && Want != Mat)
+	{
+		Mat = Want;
+		SetMaterial(0, Mat);
+		LastTint = FLinearColor(-1, -1, -1);
+	}
 	if (!bFrozen) Clock += Dt;
 	const FLinearColor Tint = C->StatusTint();   // e.g. whitish blue while frozen (<world>.statusTints)
 	if (!Tint.Equals(LastTint)) { Mat->SetVectorParameterValue(TEXT("Tint"), Tint); LastTint = Tint; }
@@ -84,6 +95,7 @@ void UTSSpriteComponent::TickComponent(float Dt, ELevelTick TickType, FActorComp
 	const bool bWindup = C->IsWindingUp();
 	if (bFrozen) { Row = HeldRow; Col = HeldCol; }   // frozen mid-step: hold the frame
 	else if (C->IsDead()) { Row = 12; Col = 0; }
+	else if (bAsleep) { Row = 0; Col = 0; }   // asleep: the still, front-facing frame, laid on its side (below)
 	else
 	{
 		int32 Act = Idle;
@@ -91,7 +103,7 @@ void UTSSpriteComponent::TickComponent(float Dt, ELevelTick TickType, FActorComp
 		else if (SinceAttack < 0.3f) { Act = Attack; Col = 1 + FMath::Min(2, int32(SinceAttack / 0.1f)); }   // swing, strike, recover
 		else if (bWindup) { Act = Attack; Col = 0; }
 		else if (C->GuardStyle().IsValid()) { Act = -1; Row = 12; Col = 1 + Dir; }   // shield raised (row 12, cols 1-3)
-		else if (C->GetVelocity().Size2D() > 25.f) { Act = Walk; Col = int32(Clock * 9.f) % 4; }
+		else if (C->GetVelocity().Size2D() > 25.f) { Act = Walk; Col = int32(Clock * (C->Tags.Has(TEXT("Sneaking")) ? 5.f : 9.f)) % 4; }
 		else { Act = Idle; Col = int32(Clock * 2.2f) % 2; }
 		if (Act >= 0) Row = Dir * 4 + Act;
 	}
@@ -107,12 +119,29 @@ void UTSSpriteComponent::TickComponent(float Dt, ELevelTick TickType, FActorComp
 	// Standing upright (stretched to look the same): a tall character never leans into a wall behind them.
 	const FRotator R = TSLook::StandingRotation();
 	const FVector CardUp = TSLook::StandingUp();
-	const float Stretch = TSLook::StandingStretch();
+	// Crouched (tag "Sneaking"): a shorter, squatter figure.
+	const bool bCrouched = C->Tags.Has(TEXT("Sneaking")) && !SneakMat;   // (no crouching sheet: just shorter)
+	const float Stretch = TSLook::StandingStretch() * (bCrouched ? 0.78f : 1.f);
 	FVector Feet = C->GetActorLocation() - FVector(0, 0, C->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
 	FVector Center = Feet + CardUp * (Size * 0.5f - 2.5f * Units) * Stretch;
 	if (TSLook::Mode() == TSLook::EMode::Flat2D) Center.Z = TSLook::FlatSortZ(Feet.Y);
-	SetWorldLocationAndRotation(Center, R);
-	SetWorldScale3D(FVector(Size / 100.f, Size * Stretch / 100.f, 1.f));
+	// Lying down, the card would throw a tall shadow over whatever it sleeps on (a haystack): no shadow then.
+	if (TSLook::Mode() != TSLook::EMode::Flat2D && CastShadow == bAsleep) SetCastShadow(!bAsleep);
+	if (bAsleep)
+	{
+		// Lying down: the card turned a quarter about its own face, so the figure lies along the ground, its middle a
+		// little above the feet (the art is ~12 px wide). The stretch follows the card's on-screen up, now its X.
+		const FQuat Lie = FQuat(R.Quaternion().GetAxisZ(), FMath::DegreesToRadians(90.f)) * R.Quaternion();
+		Center = Feet + CardUp * 6.f * Units * Stretch;
+		if (TSLook::Mode() == TSLook::EMode::Flat2D) Center.Z = TSLook::FlatSortZ(Feet.Y);
+		SetWorldLocationAndRotation(Center, Lie);
+		SetWorldScale3D(FVector(Size * Stretch / 100.f, Size / 100.f, 1.f));
+	}
+	else
+	{
+		SetWorldLocationAndRotation(Center, R);
+		SetWorldScale3D(FVector(Size / 100.f, Size * Stretch / 100.f, 1.f));
+	}
 	if (Shadow)
 	{
 		Shadow->SetVisibility(!C->IsDead());

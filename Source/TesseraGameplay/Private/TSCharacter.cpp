@@ -1,4 +1,6 @@
 #include "TSCharacter.h"
+#include "TSSleep.h"
+#include "TSWorldBuilder.h"
 #include "TSSprite.h"
 #include "TSLook.h"
 #include "TSData.h"
@@ -334,4 +336,17 @@ void ATSCharacter::HideBody()
 	GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 	GetMesh()->SetVisibility(false, true);
 	if (BodyMesh() && BodyMesh() != GetMesh()) BodyMesh()->SetVisibility(false, true);
+}
+
+bool ATSCharacter::CanBeTargeted(const ATSCharacter* By) const
+{
+	const UTSSleep* S = UTSSleep::Of(this);
+	if (!S || !S->IsIndoors()) return true;
+	// Behind a door: reachable only from inside the same building, and only once it's open.
+	for (TActorIterator<ATSWorldBuilder> It(GetWorld()); It; ++It)
+	{
+		const int32 I = It->CutawayAt(GetActorLocation());
+		return By && I != INDEX_NONE && It->IsCutawayOpen(I) && It->CutawayAt(By->GetActorLocation()) == I;
+	}
+	return false;
 }

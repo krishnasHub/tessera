@@ -132,9 +132,10 @@ void ATSWorldBuilder::UpdateCutaways(float Dt)
 	for (FTSCutaway& H : Cutaways)
 	{
 		// Sight lines from the camera to the hero's feet, middle and head.
-		bool bBlocks = false;
+		bool bBlocks = H.bPeek && FMath::Sqrt(H.Bounds.ComputeSquaredDistanceToPoint(FVector(At.X, At.Y, H.Bounds.GetCenter().Z))) < CutawayPeekRange;
 		for (const float Z : { -80.f, 0.f, 90.f })
 		{
+			if (bBlocks) break;
 			const FVector End = At + FVector(0, 0, Z);
 			if (FMath::LineBoxIntersection(H.Bounds, Cam, End, End - Cam)) { bBlocks = true; break; }
 		}
@@ -204,4 +205,39 @@ void ATSWorldBuilder::BuildNavigation(const FBox& Area)
 	// skipped for empty bounds); now that it's built, register it again so the navmesh has ground to stand on.
 	if (Terrain) Nav->UpdateComponentInNavOctree(*Terrain);
 	UE_LOG(LogTessera, Display, TEXT("Navmesh bounds: %s"), *Vol->GetComponentsBoundingBox(true).ToString());
+}
+
+// ---------------------------------------------------------------------------------------------
+// Buildings: find, peek into, open
+// ---------------------------------------------------------------------------------------------
+
+int32 ATSWorldBuilder::CutawayAt(const FVector& Point) const
+{
+	for (int32 I = 0; I < Cutaways.Num(); ++I)
+	{
+		const FBox& B = Cutaways[I].Bounds;
+		if (Point.X >= B.Min.X && Point.X <= B.Max.X && Point.Y >= B.Min.Y && Point.Y <= B.Max.Y) return I;
+	}
+	return INDEX_NONE;
+}
+
+void ATSWorldBuilder::SetCutawayPeek(int32 Index, bool bPeek)
+{
+	if (Cutaways.IsValidIndex(Index)) Cutaways[Index].bPeek = bPeek;
+}
+
+void ATSWorldBuilder::SetCutawayOpen(int32 Index, bool bOpen)
+{
+	if (!Cutaways.IsValidIndex(Index) || Cutaways[Index].bOpen == bOpen) return;
+	FTSCutaway& H = Cutaways[Index];
+	H.bOpen = bOpen;
+	UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	auto Set = [Nav](UStaticMeshComponent* C, bool bCollide)
+	{
+		if (!C) return;
+		C->SetCollisionProfileName(bCollide ? TEXT("BlockAll") : TEXT("NoCollision"));
+		if (Nav) Nav->UpdateComponentInNavOctree(*C);   // the runtime navmesh follows (paths in through the door)
+	};
+	for (UStaticMeshComponent* C : H.Full) Set(C, !bOpen);
+	for (UStaticMeshComponent* C : H.Cut) Set(C, bOpen);
 }

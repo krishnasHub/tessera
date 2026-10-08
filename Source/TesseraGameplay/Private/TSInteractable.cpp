@@ -15,6 +15,7 @@ ATSInteractable::ATSInteractable()
 	Card->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Card->SetUsingAbsoluteRotation(true);
 	Card->SetUsingAbsoluteScale(true);
+	Card->BoundsScale = 2.f;   // a thin card: roomier bounds, so the occlusion culler doesn't lose it (as with sprites)
 }
 
 ATSInteractable* ATSInteractable::Spawn(UWorld* World, const FString& Id, const TSJson::FObj& Def, const FVector& At)
@@ -33,6 +34,7 @@ ATSInteractable* ATSInteractable::Spawn(UWorld* World, const FString& Id, const 
 	A->Radius = float(TSJson::Num(Def, TEXT("radius"), 60));
 	A->bUsable = TSJson::Bool(Def, TEXT("usable"), true);
 	A->DoorTo = TSJson::Str(Def, TEXT("door"));
+	A->UseAction = TSJson::Str(Def, TEXT("use"));
 	const TArray<TSharedPtr<FJsonValue>> Exit = TSJson::Arr(Def, TEXT("exit"));
 	if (Exit.Num() == 2) A->ExitTiles = FVector2D(Exit[0]->AsNumber(), Exit[1]->AsNumber());
 	A->Size = float(TSJson::Num(Def, TEXT("size"), 100));
@@ -41,6 +43,7 @@ ATSInteractable* ATSInteractable::Spawn(UWorld* World, const FString& Id, const 
 	A->Card->SetStaticMesh(TSAssets::Shape(TEXT("Plane")));
 	A->Card->SetMaterial(0, TSLook::PropMaterial(TSJson::Str(Def, TEXT("sheet"))));
 	A->Card->SetCastShadow(!A->bFlat);
+	A->Card->SetVisibility(TSJson::Has(Def, TEXT("sheet")));
 	A->Place();
 	return A;
 }

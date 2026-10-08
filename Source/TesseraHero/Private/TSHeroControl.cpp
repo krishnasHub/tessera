@@ -83,7 +83,8 @@ ATSCharacter* UTSHeroControl::UnderCursor(bool& bHostile) const
 		ATSCharacter* C = *It;
 		if (C == Me || C->IsDead() || C->IsLeaving()) continue;
 		const bool bFoe = Foes.Contains(C);
-		if (!bFoe && C->DialogueRoot.IsEmpty()) continue;
+		if (!bFoe && C->DialogueRoot.IsEmpty() && !(Interesting && Interesting(C))) continue;
+		if (!C->CanBeTargeted(Me)) continue;
 		// Generous: anywhere on the body, plus a little slack around it.
 		float Miss = FMath::Min(FMath::PointDistToLine(C->Chest(), R, O), FMath::PointDistToLine(C->GetActorLocation() - FVector(0, 0, 40), R, O));
 		if (TSLook::IsSprite())
@@ -255,7 +256,9 @@ FVector UTSHeroControl::Update(float Dt)
 		}
 		if (IsAttacking && IsAttacking()) return FVector::ZeroVector;   // finish the swing before chasing
 	}
-	if (Goal == ETSClickGoal::Talk && FVector::Dist2D(T->GetActorLocation(), At) - T->Radius() <= TalkRange)
+	// (Only a walk-up to someone has an approach range: a move or a use has no one to measure from.)
+	const float Approach = Goal == ETSClickGoal::Talk && T && ApproachRange ? ApproachRange(T) : -1.f;
+	if (Goal == ETSClickGoal::Talk && FVector::Dist2D(T->GetActorLocation(), At) - T->Radius() <= (Approach >= 0.f ? Approach : TalkRange))
 	{
 		ClearGoal();
 		if ((!TalkBlocker || TalkBlocker(T).IsEmpty()) && Talk) Talk(T);   // (they may have turned hostile on the way)

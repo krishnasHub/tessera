@@ -1,4 +1,5 @@
 #include "TSCombat.h"
+#include "TSSleep.h"
 #include "TSCharacter.h"
 #include "TSFeedback.h"
 #include "TSData.h"
@@ -70,6 +71,13 @@ bool TSCombat::Deal(ATSCharacter* Src, ATSCharacter* Target, const FTSHit& Hit)
 	const float K = float(TS->Rule(TEXT("armorConstant"), 100));
 	Dmg *= K / (K + TS->Armor());
 	if (Target->Tags.Has(TEXT("Marked"))) Dmg *= Target->MarkMul;
+	// Caught asleep: a heavier blow (tuning.sleep.hitMul), and it's wide awake now.
+	if (UTSSleep* Sleep = UTSSleep::Of(Target); Sleep && Sleep->IsAsleep())
+	{
+		Dmg *= float(TSJson::Num(TSJson::Obj(D.Section(TEXT("tuning")), TEXT("sleep")), TEXT("hitMul"), 2.0));
+		Sleep->Wake();
+		Fb->Float(TextAt + FVector(0, 0, 25), TEXT("AMBUSH"), FLinearColor(0.7f, 0.8f, 1.f), 0.9f);
+	}
 	const float Var = float(TS->Rule(TEXT("variance"), 0.1));
 	Dmg *= FMath::FRandRange(1.f - Var, 1.f + Var);
 	int32 Amount = FMath::Max(1, FMath::RoundToInt(Dmg));

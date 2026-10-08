@@ -23,7 +23,8 @@ struct TESSERAGAMEPLAY_API FTSSenses
  *   hidden      a character tagged "Hidden" (a smoke bomb...) can't be noticed; acting (attacking, shooting,
  *               casting, talking) reveals it
  *   noticing    inside the senses' range, in the sight cone or within hearing, with a clear line of sight
- *               (head to head, ECC_Visibility)
+ *               (head to head, ECC_Visibility); asleep (UTSSleep): no cone, hearing x tuning.sleep.hearMul
+ *   sneaking    a target tagged "Sneaking" (crouched) is heard only within hearing x tuning.sneak.hearMul
  *   threat      foes hunting a character (ATSCharacter::IsHunting): tuning.threatSense { range, revealAfterAttack }
  *
  * The game adds its own rules on top (territory, factions...).

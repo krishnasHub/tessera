@@ -69,7 +69,7 @@ void STSNightShade::Construct(const FArguments& Args)
 void STSNightShade::Tick(const FGeometry& G, const double Time, const float Dt)
 {
 	SLeafWidget::Tick(G, Time, Dt);
-	Strength = ATSSky::Darkness();
+	Strength = ATSSky::ShadeStrength();   // (a hero with night eyes sees a dim grey beyond their sight, not black)
 	APlayerController* PC = World.IsValid() ? World->GetFirstPlayerController() : nullptr;
 	const APawn* P = PC ? PC->GetPawn() : nullptr;
 	if (!Mat || !P || Strength < 0.001f || !GEngine || !GEngine->GameViewport) return;

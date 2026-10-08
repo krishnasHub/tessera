@@ -45,6 +45,8 @@ public:
 	TFunction<bool()> IsAttacking;
 	/** The primary attack, in place. */
 	TFunction<void()> Attack;
+	/** Worth picking out with the cursor even with nothing to say and not a foe (e.g. pockets to pick). */
+	TFunction<bool(const ATSCharacter* Who)> Interesting;
 	/** Why the hero can't talk to Who right now ("" = they can). */
 	TFunction<FString(const ATSCharacter* Who)> TalkBlocker;
 	/** Open the conversation with Who (they're in range and willing). */
@@ -55,6 +57,9 @@ public:
 	TFunction<void(ATSInteractable* It)> Use;
 	/** How close the hero walks before talking (from the other's edge). */
 	float TalkRange = 200.f;
+	/** How close to walk up to Who before Talk fires (from its edge), when the game wants it closer than TalkRange
+	 *  (e.g. close enough to lift a purse). Unset or negative: TalkRange. */
+	TFunction<float(const ATSCharacter* Who)> ApproachRange;
 	/** Held with LMB: attack in place; with the wheel: the ability picker. */
 	FKey ModifierKey = EKeys::LeftShift;
 

@@ -41,6 +41,8 @@ public:
 
 	/** The hour of the day (0-24). */
 	static float Hour();
+	/** Jump the clock (tests, sleeping till morning...); the sky and UTSDayNight follow on the next tick. */
+	static void SetHour(float InHour);
 	/** 0 by day, 1 at night (follows the sun). */
 	static float Night();
 	/** Indoors (a cave, a cellar): this many stops darker and a heavier vignette, on top of the time of day; 0 = outdoors. */
@@ -53,6 +55,12 @@ public:
 	/** A light the hero carries (a lamp, a glowing staff...) adds this much (uu) to their sight in the dark; the game
 	 *  sets it (e.g. from UTSDayNight::OnNightLevel). */
 	static void SetCarriedLight(float ExtraSight);
+	/** Night eyes (a thief, a cat-eyed witcher): the night shade beyond the hero's sight is drawn at this strength (1 =
+	 *  black, less = a dim grey you can make shapes out in). Only the look: IsLit (what the game counts as seen) is
+	 *  unchanged. */
+	static void SetNightEyes(float ShadeMul);
+	/** How dark the night shade is drawn: Darkness() x night eyes. */
+	static float ShadeStrength();
 	/** Fires, lamps...: (x, y, radius they light). */
 	static const TArray<FVector>& NightLights();
 	/** A light that keeps the dark back within Radius (scaled by nightVision.lightReach). */
