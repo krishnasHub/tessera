@@ -148,6 +148,28 @@ void ATSAmbientLife::Remove(int32 Index)
 	Critters.RemoveAtSwap(Index);
 }
 
+void ATSAmbientLife::StartVanish(FCritter& C)
+{
+	C.State = FCritter::EState::Vanish;
+	C.Timer = 0.4f;
+	if (C.bSeeThrough) return;
+	// Fade out where it stands (the see-through sprite material); without that material it shrinks away instead.
+	UMaterialInterface* Base = TSAssets::Material(this, TEXT("spriteSeeThrough"));
+	UTexture* Tex = nullptr;
+	if (!Base || !C.Mat || !C.Mat->GetTextureParameterValue(TEXT("Tex"), Tex) || !Tex) return;
+	UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, this);
+	M->SetTextureParameterValue(TEXT("Tex"), Tex);
+	for (const TCHAR* P : { TEXT("Cols"), TEXT("Rows"), TEXT("Col"), TEXT("Row"), TEXT("Flip") })
+	{
+		float V = 0.f;
+		if (C.Mat->GetScalarParameterValue(FName(P), V)) M->SetScalarParameterValue(FName(P), V);
+	}
+	M->SetScalarParameterValue(TEXT("Opacity"), 1.f);
+	C.Mesh->SetMaterial(0, M);
+	C.Mat = M;
+	C.bSeeThrough = true;
+}
+
 void ATSAmbientLife::FillNow()
 {
 	const APlayerController* PC = GetWorld()->GetFirstPlayerController();
@@ -164,14 +186,14 @@ void ATSAmbientLife::Place(FCritter& C, float Dt)
 	const FVector Up = -FRotationMatrix(R).GetUnitAxis(EAxis::Y);
 	float Lift = 0.f;
 	if (K.Move == TEXT("fly")) Lift = K.Height + FMath::Sin(C.Anim * 3.1f + C.Phase) * K.Height * 0.25f;   // bobbing flight
-	const float S = K.Size * C.Shrink;
+	const float S = K.Size * (C.bSeeThrough ? 1.f : C.Fade);
 	C.Mesh->SetWorldLocationAndRotation(FVector(C.Pos.X, C.Pos.Y, C.Pos.Z + Lift) + Up * (S * 0.5f - S * 0.06f), R);
 	C.Mesh->SetWorldScale3D(FVector(S * K.Aspect / 100.f, S / 100.f, 1.f));
 	const bool bMoving = C.State != FCritter::EState::Pause || K.Move == TEXT("fly");
 	C.Mat->SetScalarParameterValue(TEXT("Col"), bMoving ? float(int32(C.Anim * K.Fps) % K.Frames) : 0.f);
 	C.Mat->SetScalarParameterValue(TEXT("Row"), 0.f);
 	if (FMath::Abs(C.Vel.X) > 3.f) C.Mat->SetScalarParameterValue(TEXT("Flip"), C.Vel.X < 0.f ? 1.f : 0.f);   // sheets face right
-	C.Mesh->SetVisibility(C.Shrink > 0.02f);
+	C.Mesh->SetVisibility(C.Fade > 0.02f);
 }
 
 void ATSAmbientLife::Tick(float Dt)
@@ -210,9 +232,9 @@ void ATSAmbientLife::Tick(float Dt)
 		if ((C.State == FCritter::EState::Wander || C.State == FCritter::EState::Pause) && ToHero < K.Flee)
 		{
 			Fled.Add(K.Id);
-			C.State = K.bVanish ? FCritter::EState::Vanish : FCritter::EState::Flee;
-			C.Timer = K.bVanish ? 0.35f : 1.6f;
 			C.Vel = (C.Pos - Hero).GetSafeNormal2D() * K.FleeSpeed;
+			if (K.bVanish) StartVanish(C);
+			else { C.State = FCritter::EState::Flee; C.Timer = 1.6f; }
 		}
 		switch (C.State)
 		{
@@ -237,18 +259,19 @@ void ATSAmbientLife::Tick(float Dt)
 			break;
 		}
 		case FCritter::EState::Flee:
-			if (C.Timer <= 0.f) { C.State = FCritter::EState::Vanish; C.Timer = 0.4f; }   // out of breath: gone, to come back elsewhere
+			if (C.Timer <= 0.f) StartVanish(C);   // out of breath: gone, to come back elsewhere
 			break;
 		case FCritter::EState::Vanish:
-			C.Shrink = FMath::Max(0.f, C.Shrink - Dt / 0.35f);
-			if (C.Shrink <= 0.f) { Remove(I); continue; }
+			C.Fade = FMath::Max(0.f, C.Fade - Dt / 0.35f);
+			if (C.Fade <= 0.f) { Remove(I); continue; }
+			if (C.bSeeThrough) C.Mat->SetScalarParameterValue(TEXT("Opacity"), C.Fade);
 			break;
 		}
 		// Never a step into water or a wall: wanderers stop and think again; runaways just slip away instead.
 		const FVector NextPos = C.Pos + C.Vel * Dt;
 		if (!Standable(K, NextPos + C.Vel.GetSafeNormal2D() * 40.f))
 		{
-			if (C.State == FCritter::EState::Flee) { C.State = FCritter::EState::Vanish; C.Timer = 0.4f; }
+			if (C.State == FCritter::EState::Flee) StartVanish(C);
 			else if (C.State == FCritter::EState::Wander) { C.State = FCritter::EState::Pause; C.Timer = Rand.FRandRange(0.5f, 1.5f); }
 			C.Vel = FVector::ZeroVector;
 		}

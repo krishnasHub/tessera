@@ -68,9 +68,10 @@ private:
 		TObjectPtr<UStaticMeshComponent> Mesh;
 		TObjectPtr<UMaterialInstanceDynamic> Mat;
 		FVector Home = FVector::ZeroVector, Pos = FVector::ZeroVector, Target = FVector::ZeroVector, Vel = FVector::ZeroVector;
-		float Timer = 0.f, Anim = 0.f, Phase = 0.f, Shrink = 1.f;
+		float Timer = 0.f, Anim = 0.f, Phase = 0.f, Fade = 1.f;
 		enum class EState : uint8 { Wander, Pause, Flee, Vanish } State = EState::Wander;
 		bool bLeaving = false;   // its kind isn't wanted now: go once out of the hero's sight
+		bool bSeeThrough = false;   // vanishing on the see-through material: fades out at full size
 	};
 
 	void LoadKinds();
@@ -78,6 +79,7 @@ private:
 	int32 WantedCount(const FKind& K) const;
 	bool SpawnOne(int32 KindIndex, const FVector& Hero, bool bAnywhere);
 	void Remove(int32 Index);
+	void StartVanish(FCritter& C);
 	float GroundZ(const FVector& P) const;
 	void Place(FCritter& C, float Dt);
 	bool Standable(const FKind& K, const FVector& At) const { return K.Move == TEXT("fly") || !CanStand || CanStand(At); }
