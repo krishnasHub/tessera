@@ -64,7 +64,7 @@ void ATSSky::SetIndoors(float ExposureStops, float Vignette)
 {
 	IndoorStops = ExposureStops;
 	IndoorVignette = Vignette;
-	UpdateSky();
+	if (bDayCycle) UpdateSky();   // (a frozen sun, -<P>Sun, has no moon or clock to update)
 }
 
 float ATSSky::Night() { return GNight; }

@@ -8,6 +8,7 @@
 #include "NavigationPath.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 namespace
 {
@@ -99,6 +100,19 @@ void UTSSleep::StepIn()
 	C->SetActorLocation(Bed + FVector(0, 0, C->GetSimpleCollisionHalfHeight()), false, nullptr, ETeleportType::TeleportPhysics);
 }
 
+void UTSSleep::ClearEntry()
+{
+	bHasEntry = false;
+	Path.Reset();
+	if (!bIn) return;
+	bIn = false;
+	if (ATSCharacter* C = Char())
+	{
+		C->SetActorEnableCollision(true);
+		C->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+	}
+}
+
 void UTSSleep::StepOut()
 {
 	ATSCharacter* C = Char();
@@ -166,7 +180,23 @@ void UTSSleep::TickComponent(float Dt, ELevelTick TickType, FActorComponentTickF
 	else NoProgress += Dt;
 	// Short of an open-air bed: lie down right there (no visible hop); a door it still has to reach, it goes through.
 	if (Dist <= BedReach) FallAsleep();
-	else if (NoProgress > 2.5f) FallAsleep(/*bSnap*/ false);
+	else if (NoProgress > 2.5f)
+	{
+		// Stuck on the way: a door it still has to reach, it goes through. An open-air bed nobody's near enough to watch:
+		// it's simply in bed. Watched: keep sidestepping and trying for a while, then lie down where it stands.
+		const APawn* Hero = UGameplayStatics::GetPlayerPawn(this, 0);
+		const bool bWatched = Hero && FVector::Dist2D(Hero->GetActorLocation(), C->GetActorLocation()) < SleepTuning(this, TEXT("snapUnwatched"), 2500);
+		if (bHasEntry || !bWatched) FallAsleep(/*bSnap*/ !bWatched);
+		else if (NoProgress > SleepTuning(this, TEXT("giveUpAfter"), 8)) FallAsleep(/*bSnap*/ false);
+	}
+	// Not getting nearer: step aside a moment (round a corner, out of a queue), then on again.
+	if (NoProgress > 1.f && SidestepFor <= 0.f && !IsAsleep())
+	{
+		const FVector Ahead = (Goal - C->GetActorLocation()).GetSafeNormal2D();
+		Sidestep = FVector(-Ahead.Y, Ahead.X, 0.f) * (FMath::RandBool() ? 1.f : -1.f) - Ahead * 0.3f;
+		SidestepFor = 0.6f;
+		RepathIn = 0.f;
+	}
 }
 
 void UTSSleep::Reset()
@@ -195,6 +225,7 @@ void UTSSleep::Repath(const FVector& To)
 FVector UTSSleep::Direction(float Dt)
 {
 	if (!bTurningIn) return FVector::ZeroVector;
+	if (SidestepFor > 0.f) { SidestepFor -= Dt; return Sidestep.GetSafeNormal2D(); }
 	return DirectionTo(bHasEntry ? Entry : bHasBed ? Bed : GetOwner()->GetActorLocation(), Dt);
 }
 

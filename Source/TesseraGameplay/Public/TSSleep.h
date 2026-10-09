@@ -41,6 +41,9 @@ public:
 	static UTSSleep* Add(ATSCharacter* Owner, ETSSleepHours Hours, const FVector& Bed, bool bHasBed);
 	/** The bed is behind a door: walk to Entry, then step through to the bed. */
 	void SetEntry(const FVector& InEntry) { Entry = InEntry; bHasEntry = true; }
+	/** The door is gone (say, a gate left open): no more stepping through; it walks to its bed in the open. One in bed
+	 *  behind it right now simply stays there, in the open (collision back on). */
+	void ClearEntry();
 
 	ETSSleepHours Hours = ETSSleepHours::Never;
 	FVector Bed = FVector::ZeroVector;
@@ -96,6 +99,8 @@ private:
 	FVector PathGoal = FVector(BIG_NUMBER);
 	float AwakeFor = 0.f, HeldFor = 0.f, ZzzIn = 0.f, RepathIn = 0.f;
 	float Closest = BIG_NUMBER, NoProgress = 0.f;   // walking to bed: the nearest it got, and for how long it hasn't got nearer
+	FVector Sidestep = FVector::ZeroVector;          // stuck (a corner, a crowd at a gate): a moment's step aside
+	float SidestepFor = 0.f;
 	TArray<FVector> Path;
 	int32 PathIndex = 0;
 };
