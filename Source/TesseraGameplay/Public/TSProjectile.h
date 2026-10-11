@@ -58,4 +58,6 @@ private:
 	TSet<TWeakObjectPtr<AActor>> PassedThrough;
 
 	void Burst();
+	/** One slice of flight; false once the projectile has hit, stuck or burst. */
+	bool Fly(float Dt);
 };

@@ -159,10 +159,19 @@ void ATSProjectile::Tick(float Dt)
 		if (StuckTime <= 0.f) Destroy();
 		return;
 	}
+	// In slices of at most 1/60 s: a long frame (a hitch) taken in one straight step would cut through the ground
+	// short of an arc's target, or skip past a body.
+	const int32 N = FMath::Clamp(FMath::CeilToInt(Dt * 60.f), 1, 30);
+	for (int32 I = 0; I < N; ++I) if (!Fly(Dt / N)) return;
+}
+
+bool ATSProjectile::Fly(float Dt)
+{
 	Life -= Dt;
 	const FVector Prev = GetActorLocation();
+	// Exact under constant gravity, so an arc comes down where it was aimed whatever the frame rate.
+	const FVector Next = Prev + Velocity * Dt - FVector(0, 0, 0.5f * Gravity * Dt * Dt);
 	Velocity.Z -= Gravity * Dt;
-	const FVector Next = Prev + Velocity * Dt;
 	if (bArrow) SetActorRotation(Velocity.Rotation());   // nose follows the arc
 
 	FHitResult WorldHit;
@@ -173,7 +182,7 @@ void ATSProjectile::Tick(float Dt)
 	// Characters along this step (before the world: a falling arrow can graze the ground just short of a
 	// small target's body).
 	ATSCharacter* Src = Shooter.Get();
-	if (!Src) { Destroy(); return; }
+	if (!Src) { Destroy(); return false; }
 	for (ATSCharacter* T : TSCombat::Opponents(Src))
 	{
 		if (PassedThrough.Contains(T)) continue;
@@ -189,7 +198,7 @@ void ATSProjectile::Tick(float Dt)
 		FTSHit H = Hit;
 		H.Dir = Velocity.GetSafeNormal2D();
 		H.From = Prev - Velocity * 0.05f;
-		if (TSCombat::Deal(Src, T, H)) { Burst(); return; }
+		if (TSCombat::Deal(Src, T, H)) { Burst(); return false; }
 		PassedThrough.Add(T);   // dodged through it
 	}
 
@@ -197,16 +206,39 @@ void ATSProjectile::Tick(float Dt)
 	{
 		if (bArrow && bWorld)
 		{
+			// Coming down on (or right beside) a foe counts: a small one is easy to graze past on a steep fall.
+			// The reach is <world>.arrows.landRadius beyond the foe's body.
+			const float Land = float(TSJson::Num(TSJson::Obj(UTSData::Get(this).World(), TEXT("arrows")), TEXT("landRadius"), 40));
+			const FVector At = WorldHit.ImpactPoint;
+			ATSCharacter* Best = nullptr;
+			float BestD = 0.f;
+			for (ATSCharacter* T : TSCombat::Opponents(Src))
+			{
+				if (PassedThrough.Contains(T)) continue;
+				const float D = FVector::Dist2D(At, T->GetActorLocation()) - T->Radius();
+				const float Up = At.Z - (T->GetActorLocation().Z - T->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+				if (D > Land || Up < -60.f || Up > T->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() * 2.f + 60.f) continue;
+				if (!Best || D < BestD) { Best = T; BestD = D; }
+			}
+			if (Best)
+			{
+				SetActorLocation(At);
+				FTSHit H = Hit;
+				H.Dir = Velocity.GetSafeNormal2D();
+				H.From = Prev - Velocity * 0.05f;
+				if (TSCombat::Deal(Src, Best, H)) { Burst(); return false; }
+			}
 			// A miss sticks where it lands (tip buried), then disappears.
 			SetActorLocation(WorldHit.ImpactPoint - Velocity.GetSafeNormal() * 25.f);
 			bStuck = true;
 			StuckTime = 2.5f;
 			if (Trail) Trail->SetVisibility(false);
-			return;
+			return false;
 		}
 		if (bWorld) SetActorLocation(WorldHit.ImpactPoint);
 		Burst();
-		return;
+		return false;
 	}
 	SetActorLocation(Next);
+	return true;
 }

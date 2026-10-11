@@ -9,6 +9,7 @@
 #include "TSLook.h"
 
 #include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "NavigationSystem.h"
 #include "NavigationPath.h"
@@ -46,6 +47,12 @@ bool UTSHeroControl::IsModifierDown() const
 bool UTSHeroControl::CursorRay(FVector& Origin, FVector& Dir) const
 {
 	const APlayerController* P = PC();
+	if (bTestCursor && bTopDown && P && P->PlayerCameraManager)
+	{
+		Origin = P->PlayerCameraManager->GetCameraLocation();
+		Dir = (TestCursorAt - Origin).GetSafeNormal();
+		return true;
+	}
 	return bTopDown && !bInputLocked && !bScripted && P && P->DeprojectMousePositionToWorld(Origin, Dir);
 }
 

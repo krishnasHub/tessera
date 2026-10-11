@@ -20,7 +20,7 @@ names, map symbols, material paths, command-line names, wording, colours) comes 
 | Tools | What |
 |---|---|
 | `Tools/Tessera.ps1` | Build, play, test (parallel, sized to the PC), package, screenshots, prepare assets, art, data sync; configured by the game's `tessera.json` (see the script's header) |
-| `Tools/unreal/tessera_assets.py` | For the editor's Python: material-graph helpers, pixel-art texture import, and the materials Tessera's C++ drives (sprite (also see-through), pixel world, night shade, glow, telegraph, fresnel, flash) |
+| `Tools/unreal/tessera_assets.py` | For the editor's Python: material-graph helpers, pixel-art texture import, and the materials Tessera's C++ drives (sprite (also see-through), pixel world, night shade, glow, telegraph, fresnel, flash) and a pixel-art fire for a camera card (`flame`) |
 | `Tools/pixelart/tspixel/` | Python + numpy: PNG writer, colours, drawing helpers, and the character sprite-sheet layout `UTSSpriteComponent` plays |
 
 Story and dialogue live in a separate plugin, [Loom](https://github.com/krishnasHub/loom); Tessera doesn't depend on it.
@@ -124,7 +124,7 @@ Going the other way, the game tells Tessera what it can't know: `ATSSky::SetCarr
   "currencyKey": "currency",                      // the loot-table key for coin ranges
   "statusTints": { "Frozen": "#bfe2ff" },         // characters tinted while they carry a tag ("Frozen" also stops them)
   "kits": { ... }, "mounts": { ... },             // weapon kits: shapes on bones (ATSCharacter::SetWeaponKits)
-  "arrows": { "heightPerDistance": 0.16, "minHeight": 30, "maxHeight": 320 },
+  "arrows": { "heightPerDistance": 0.16, "minHeight": 30, "maxHeight": 320, "landRadius": 40 },  // arc shape; a landing arrow hits a foe within landRadius of its body
   "unitsPerPx": 3.5, "tileSize": 300,            // data "pixels" -> Unreal units (UTSData::Px)
   "look": "hd2d",                                 // mesh3d | hd2d | flat2d
   "camera": { "mode": "topdown",                  // or anything else: over the shoulder { armLength, lagSpeed, socketOffset, fov }

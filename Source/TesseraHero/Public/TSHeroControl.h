@@ -108,6 +108,9 @@ public:
 	FVector Update(float Dt);
 	/** Self-test hook: a single click on On (attack or talk) or, with none, on the ground at Point. */
 	void TestClick(const FVector& Point, ATSCharacter* On = nullptr);
+	/** Self-test hook: the mouse points at Point (the cursor ray runs from the camera to it) until TestCursorOff(). */
+	void TestCursor(const FVector& Point) { TestCursorAt = Point; bTestCursor = true; }
+	void TestCursorOff() { bTestCursor = false; }
 
 	// ---- talk mode ----
 	bool IsTalkMode() const { return bTalkMode; }
@@ -138,6 +141,8 @@ protected:
 
 private:
 	ATSCharacter* Hero() const;
+	FVector TestCursorAt = FVector::ZeroVector;
+	bool bTestCursor = false;
 	APlayerController* PC() const;
 	void Repath(const FVector& To);
 

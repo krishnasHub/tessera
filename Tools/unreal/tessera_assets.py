@@ -15,6 +15,7 @@ ships no assets: each game runs its own script that calls these, and the assets 
                 telegraph()    <world>.assets.telegraph   Color, Intensity, Opacity
                 fresnel()      a rim-lit bubble           Color, Intensity, Opacity
                 flash()        <world>.assets.flash       Color, Opacity
+                flame()        looping pixel-art fire     Cols, Rows, Intensity, Speed, Seed, Tint (on a card)
 
 Use from a game's script:
 
@@ -305,6 +306,85 @@ def flash(folder, name, color=(3.0, 3.0, 3.0, 1), opacity=0.55):
     m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
     mel.connect_material_property(vector(m, "Color", color), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     mel.connect_material_property(scalar(m, "Opacity", opacity, y=300), "", unreal.MaterialProperty.MP_OPACITY)
+    finish(m)
+    return m
+
+
+FLAME_HLSL = """// Pixel-art fire: the card is a Cols x Rows grid of squares; the flame steps at 10 frames a second like a sprite.
+float cx = floor(UV.x * Cols), cy = floor(UV.y * Rows);
+float y = 1.0 - (cy + 0.5) / Rows;              // 0 at the base, 1 at the top
+float x = ((cx + 0.5) / Cols - 0.5) * 2.0;
+float tq = floor((Time * Speed + Seed * 17.0) * 10.0) / 10.0;
+float yb = y / 0.62;                            // the body fills the lower part; embers rise above it
+// Value-noise fbm rising through the flame (cheap: no textures).
+float n = 0.0, amp = 0.5;
+float2 p = float2(x * 2.6 + Seed, yb * 2.2 - tq * 2.2);
+for (int i = 0; i < 3; i++)
+{
+    float2 ip = floor(p), fp = frac(p);
+    fp = fp * fp * (3.0 - 2.0 * fp);
+    float a = frac(sin(dot(ip, float2(127.1, 311.7))) * 43758.5453);
+    float b = frac(sin(dot(ip + float2(1, 0), float2(127.1, 311.7))) * 43758.5453);
+    float c = frac(sin(dot(ip + float2(0, 1), float2(127.1, 311.7))) * 43758.5453);
+    float d = frac(sin(dot(ip + float2(1, 1), float2(127.1, 311.7))) * 43758.5453);
+    n += amp * lerp(lerp(a, b, fp.x), lerp(c, d, fp.x), fp.y);
+    p = p * 2.03 + float2(3.1, -tq * 0.6);
+    amp *= 0.5;
+}
+// A round-based teardrop torn into licking tongues by the noise higher up.
+float xs = x - (n - 0.5) * 0.8 * yb;
+float w = 0.85 * saturate(1.0 - yb) * sqrt(saturate(yb / 0.15));
+float dd = 1.0 - abs(xs) / max(w, 0.001) - (n - 0.45) * (0.4 + yb * 1.5);
+float f = yb < 1.05 ? saturate(dd * 1.25) : 0.0;
+int idx = f < 0.1 ? -1 : (f < 0.28 ? 0 : (f < 0.55 ? 1 : (f < 0.8 ? 2 : (f < 0.94 ? 3 : 4))));
+// Embers: a few squares near the middle rise from the flame, wobble a square sideways, and cool as they go.
+for (int k = 0; k < 2 && idx < 0; k++)
+    for (int dx = -1; dx <= 1; dx++)
+    {
+        float col = cx + dx;
+        float hc = frac(sin((col + Seed * 3.3) * 127.1 + k * 7.1 * 311.7) * 43758.5453);
+        if (hc >= 0.3 || abs((col + 0.5) / Cols - 0.5) >= 0.28) continue;
+        float e = frac(tq * (0.35 + 0.3 * hc) + hc * 5.0);
+        float row = floor((1.0 - (0.35 + e * 0.65)) * Rows);
+        float off = round(sin(tq * 3.0 + hc * 20.0) * 0.8);
+        if (row == cy && col + off == cx) idx = e < 0.35 ? 2 : (e < 0.7 ? 1 : 0);
+    }
+// Dark red -> red -> orange -> amber -> gold, all saturated: a pale shade bleaches to grey on screen.
+float3 pal[5] = { float3(0.4, 0.04, 0.01), float3(0.75, 0.12, 0.02), float3(1.0, 0.3, 0.03), float3(1.0, 0.5, 0.06), float3(1.0, 0.68, 0.12) };
+return idx < 0 ? float3(0, 0, 0) : pal[idx];"""
+
+
+def flame(folder, name, intensity=1.0, speed=1.0):
+    """Translucent unlit, two-sided: a looping pixel-art fire on a card (UV v=0 at the top): a flame of chunky squares
+    in five shades plus embers rising off it, all computed in the shader (no textures, no particles); its brightness
+    ignores the camera's exposure. Params: Cols, Rows (the square grid: match the sprites' pixel size), Intensity,
+    Speed, Seed (give each fire its own so they don't burn in step), Tint."""
+    m = fresh(folder, name, EFFECT_USAGE)
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    m.set_editor_property("two_sided", True)
+    uv = mel.create_material_expression(m, unreal.MaterialExpressionTextureCoordinate, -1400, 0)
+    tm = mel.create_material_expression(m, unreal.MaterialExpressionTime, -1400, 100)
+    fl = custom(m, FLAME_HLSL, ["UV", "Time", "Speed", "Seed", "Cols", "Rows"], unreal.CustomMaterialOutputType.CMOT_FLOAT3, -900, 0)
+    mel.connect_material_expressions(uv, "", fl, "UV")
+    mel.connect_material_expressions(tm, "", fl, "Time")
+    mel.connect_material_expressions(scalar(m, "Speed", speed, -1400, 200), "", fl, "Speed")
+    mel.connect_material_expressions(scalar(m, "Seed", 0.0, -1400, 300), "", fl, "Seed")
+    mel.connect_material_expressions(scalar(m, "Cols", 24.0, -1400, 400), "", fl, "Cols")
+    mel.connect_material_expressions(scalar(m, "Rows", 36.0, -1400, 500), "", fl, "Rows")
+    lit = mul(m, fl, mul(m, vector(m, "Tint", (1, 1, 1, 1), -900, 300), scalar(m, "Intensity", intensity, -900, 450), -600, 300), -300, 0)
+    # Cancel the camera's exposure, so a flame looks the same in a dark night, a bright day or a dim cave (an
+    # emissive otherwise blows out to white where the eye adapts up, and fades where it adapts down).
+    eye = mel.create_material_expression(m, unreal.MaterialExpressionEyeAdaptationInverse, -150, 0)
+    mel.connect_material_expressions(lit, "", eye, "LightValueInput")
+    mel.connect_material_property(eye, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    # Solid squares: every lit square is opaque (each palette shade has red > 0), the rest see-through.
+    red = mel.create_material_expression(m, unreal.MaterialExpressionComponentMask, -600, 600)
+    red.set_editor_property("r", True)
+    mel.connect_material_expressions(fl, "", red, "")
+    solid = mel.create_material_expression(m, unreal.MaterialExpressionCeil, -400, 600)
+    mel.connect_material_expressions(red, "", solid, "")
+    mel.connect_material_property(solid, "", unreal.MaterialProperty.MP_OPACITY)
     finish(m)
     return m
 
